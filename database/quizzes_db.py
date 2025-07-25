@@ -6,7 +6,6 @@ import json
 
 load_dotenv()
 
-
 def get_conn():
     return psycopg2.connect(
         host=os.getenv("PG_HOST"),
@@ -15,7 +14,6 @@ def get_conn():
         user=os.getenv("PG_USER"),
         password=os.getenv("PG_PASSWORD")
     )
-
 
 def create_quiz_tables():
     conn = get_conn()
@@ -70,7 +68,6 @@ def create_quiz_tables():
     cur.close()
     conn.close()
     print("✅ Quiz tables created (or already existed).")
-
 
 def create_quiz(project_id, title, difficulty, questions):
     """Create a new quiz with questions"""
@@ -129,7 +126,6 @@ def create_quiz(project_id, title, difficulty, questions):
         conn.close()
         raise e
 
-
 def get_project_quizzes(project_id):
     """Get all quizzes for a project"""
     conn = get_conn()
@@ -164,7 +160,6 @@ def get_project_quizzes(project_id):
     cur.close()
     conn.close()
     return quizzes
-
 
 def get_quiz_with_questions(quiz_id, user_id):
     """Get a quiz with all its questions (verify user has access)"""
@@ -219,7 +214,6 @@ def get_quiz_with_questions(quiz_id, user_id):
     conn.close()
     return quiz_data
 
-
 def submit_quiz_attempt(quiz_id, user_id, answers, score):
     """Submit a quiz attempt"""
     conn = get_conn()
@@ -246,7 +240,6 @@ def submit_quiz_attempt(quiz_id, user_id, answers, score):
         'score': score,
         'completed_at': completed_at
     }
-
 
 def get_quiz_attempts(quiz_id, user_id):
     """Get all attempts for a quiz by a user"""
@@ -275,7 +268,6 @@ def get_quiz_attempts(quiz_id, user_id):
     cur.close()
     conn.close()
     return attempts
-
 
 def delete_quiz(quiz_id, user_id):
     """Delete a quiz (with user permission check)"""
@@ -312,7 +304,6 @@ def delete_quiz(quiz_id, user_id):
     print(f"✅ Deleted quiz '{quiz_title}' (ID: {quiz_id})")
     return True
 
-
 def get_user_quiz_analytics(user_id):
     """Get analytics for all user's quizzes"""
     conn = get_conn()
@@ -346,7 +337,6 @@ def get_user_quiz_analytics(user_id):
         'recent_attempts': result[5]
     }
 
-
 def get_quiz_performance_over_time(user_id, days=30):
     """Get quiz performance over time"""
     conn = get_conn()
@@ -373,7 +363,6 @@ def get_quiz_performance_over_time(user_id, days=30):
     cur.close()
     conn.close()
     return performance_data
-
 
 def get_difficulty_breakdown(user_id):
     """Get performance breakdown by difficulty level"""
@@ -409,7 +398,6 @@ def get_difficulty_breakdown(user_id):
     cur.close()
     conn.close()
     return difficulty_data
-
 
 def search_quizzes(user_id, query):
     """Search quizzes by title"""

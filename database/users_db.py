@@ -72,4 +72,3 @@ def validate_user(email, plain_password):
     except VerifyMismatchError:
         return False, {"status": "error", "message": "Invalid password"}
 
-

@@ -5,7 +5,6 @@ from users_db import get_conn
 
 load_dotenv()
 
-
 def get_user_id_by_email(email):
     """Get user ID by email (useful for session management)"""
     conn = get_conn()
@@ -16,7 +15,6 @@ def get_user_id_by_email(email):
     conn.close()
 
     return result[0] if result else None
-
 
 def get_user_info(user_id):
     """Get basic user information"""
@@ -42,7 +40,6 @@ def get_user_info(user_id):
         'email': result[3]
     }
 
-
 def verify_project_ownership(project_id, user_id):
     """Verify that a user owns a specific project"""
     conn = get_conn()
@@ -58,7 +55,6 @@ def verify_project_ownership(project_id, user_id):
     cur.close()
     conn.close()
     return exists
-
 
 def get_database_stats():
     """Get overall database statistics (useful for admin dashboard)"""
@@ -108,7 +104,6 @@ def get_database_stats():
     conn.close()
     return stats
 
-
 def cleanup_orphaned_files():
     """Clean up files that don't belong to any project (maintenance function)"""
     conn = get_conn()
@@ -143,7 +138,6 @@ def cleanup_orphaned_files():
     conn.close()
     return []
 
-
 def get_user_storage_usage(user_id):
     """Get storage usage for a specific user"""
     conn = get_conn()
@@ -167,7 +161,6 @@ def get_user_storage_usage(user_id):
         'project_count': result[2]
     }
 
-
 def format_file_size(size_bytes):
     """Convert bytes to human readable format"""
     if size_bytes == 0:
@@ -179,7 +172,6 @@ def format_file_size(size_bytes):
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
     return f"{s} {size_names[i]}"
-
 
 def backup_user_data(user_id, backup_path):
     """Create a backup of all user data (projects, files metadata, quizzes)"""

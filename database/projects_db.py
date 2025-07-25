@@ -6,7 +6,6 @@ import json
 
 load_dotenv()
 
-
 def get_conn():
     return psycopg2.connect(
         host=os.getenv("PG_HOST"),
@@ -15,7 +14,6 @@ def get_conn():
         user=os.getenv("PG_USER"),
         password=os.getenv("PG_PASSWORD")
     )
-
 
 def create_projects_table():
     conn = get_conn()
@@ -36,7 +34,6 @@ def create_projects_table():
     cur.close()
     conn.close()
     print("✅ projects table created (or already existed).")
-
 
 def create_new_project(user_id, name, description=""):
     conn = get_conn()
@@ -61,7 +58,6 @@ def create_new_project(user_id, name, description=""):
         'file_count': 0,
         'quiz_count': 0
     }
-
 
 def get_user_projects(user_id):
     conn = get_conn()
@@ -101,7 +97,6 @@ def get_user_projects(user_id):
     conn.close()
     return projects
 
-
 def get_project_by_id(project_id, user_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -127,7 +122,6 @@ def get_project_by_id(project_id, user_id):
         'created_at': result[4],
         'updated_at': result[5]
     }
-
 
 def update_project(project_id, user_id, name=None, description=None):
     conn = get_conn()
@@ -169,7 +163,6 @@ def update_project(project_id, user_id, name=None, description=None):
 
     return updated
 
-
 def delete_project(project_id, user_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -197,7 +190,6 @@ def delete_project(project_id, user_id):
 
     return deleted
 
-
 def get_project_stats(user_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -220,7 +212,6 @@ def get_project_stats(user_id):
         'total_quizzes': result[1] if result else 0,
         'avg_score': int(result[2]) if result and result[2] else 0
     }
-
 
 def search_projects(user_id, query):
     conn = get_conn()

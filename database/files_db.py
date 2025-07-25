@@ -6,7 +6,6 @@ import uuid
 
 load_dotenv()
 
-
 def get_conn():
     return psycopg2.connect(
         host=os.getenv("PG_HOST"),
@@ -15,7 +14,6 @@ def get_conn():
         user=os.getenv("PG_USER"),
         password=os.getenv("PG_PASSWORD")
     )
-
 
 def create_project_files_table():
     conn = get_conn()
@@ -39,7 +37,6 @@ def create_project_files_table():
     cur.close()
     conn.close()
     print("✅ project_files table created (or already existed).")
-
 
 def add_file_to_project(project_id, original_filename, file_size, mime_type, file_path):
     """Add a file record to the database"""
@@ -78,7 +75,6 @@ def add_file_to_project(project_id, original_filename, file_size, mime_type, fil
         'processed': False
     }
 
-
 def get_project_files(project_id):
     """Get all files for a specific project"""
     conn = get_conn()
@@ -113,7 +109,6 @@ def get_project_files(project_id):
     cur.close()
     conn.close()
     return files
-
 
 def get_file_by_id(file_id):
     """Get a specific file by ID"""
@@ -155,7 +150,6 @@ def get_file_by_id(file_id):
         'user_id': result[9]  # For permission checking
     }
 
-
 def delete_file(file_id, user_id):
     """Delete a file (with user permission check)"""
     conn = get_conn()
@@ -191,7 +185,6 @@ def delete_file(file_id, user_id):
     print(f"✅ Deleted file '{filename}' (ID: {file_id})")
     return True, file_path  # Return file_path so you can delete actual file from storage
 
-
 def mark_file_processed(file_id):
     """Mark a file as processed (useful for AI processing pipeline)"""
     conn = get_conn()
@@ -211,7 +204,6 @@ def mark_file_processed(file_id):
         print(f"✅ Marked file {file_id} as processed")
 
     return updated
-
 
 def get_unprocessed_files():
     """Get all unprocessed files (for background processing)"""
@@ -247,7 +239,6 @@ def get_unprocessed_files():
     conn.close()
     return files
 
-
 def get_file_stats_by_project(project_id):
     """Get file statistics for a project"""
     conn = get_conn()
@@ -278,7 +269,6 @@ def get_file_stats_by_project(project_id):
         'pdf_files': result[4],
         'text_files': result[5]
     }
-
 
 def search_files_in_project(project_id, query):
     """Search files within a project by filename"""
