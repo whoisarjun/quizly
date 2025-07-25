@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quizly - AI Quiz Generator</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-gradient"></div>
+
+    <!-- Header -->
+    <header>
+    <div class="navbar-container">
+        <div class="navbar-bubble">
+            <nav>
+                <a href="#" class="logo">
+                    Quizly
+                </a>
+
+                <div class="nav-divider"></div>
+
+                <ul class="nav-links">
+                    <li><a href="#" class="active">Home</a></li>
+                    <li><a href="#">Features</a></li>
+                    <li><a href="#">About</a></li>
+                    <li><a href="#">Contact</a></li>
+                </ul>
+
+                <a href="#" class="nav-cta">Get Started</a>
+            </nav>
+        </div>
+    </div>
+</header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-badge">
+                <div class="badge-icon"></div>
+                Now with GPT-4 integration
+            </div>
+            <h1>Turn your notes into<br>interactive quizzes</h1>
+            <p class="subtitle">Upload documents, images, or text and let AI generate engaging quizzes in seconds. Perfect for studying smart for As.</p>
+            <div class="hero-cta">
+                <a href="#upload" class="btn-primary">
+                    <i class="fas fa-rocket"></i>
+                    Get Started Free
+                </a>
+                <a href="#demo" class="btn-secondary">Watch Demo</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Upload Section -->
+    <section class="upload-section" id="upload">
+        <div class="container">
+            <div class="section-header">
+                <h2>Upload your content</h2>
+                <p>Drag and drop up to 5 files, or click to browse. We support PDFs, images, documents, and more.</p>
+            </div>
+
+            <div class="upload-container">
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <div class="upload-text">
+                        <h3>Drop files here to upload</h3>
+                        <p>or click to browse files from your computer</p>
+                    </div>
+                    <div class="file-types">
+                        <div class="file-type">
+                            <i class="fas fa-file-pdf"></i>
+                            PDF
+                        </div>
+                        <div class="file-type">
+                            <i class="fas fa-image"></i>
+                            Images
+                        </div>
+                        <div class="file-type">
+                            <i class="fas fa-file-word"></i>
+                            Word
+                        </div>
+                        <div class="file-type">
+                            <i class="fas fa-file-powerpoint"></i>
+                            PowerPoint
+                        </div>
+                        <div class="file-type">
+                            <i class="fas fa-file-alt"></i>
+                            Text
+                        </div>
+                    </div>
+                    <button class="upload-btn add-font" id="uploadBtn">Browse files</button>
+                    <input type="file" id="fileInput" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt" style="display: none;">
+                </div>
+
+                <div class="file-list" id="fileList"></div>
+
+                <div class="generate-section">
+                    <button class="generate-btn" id="generateBtn">
+                        <i class="fas fa-magic"></i>
+                        Generate Quiz with AI
+                    </button>
+                </div>
+
+                <div class="processing" id="processing">
+                    <div class="spinner"></div>
+                    <h3>AI is analyzing your content...</h3>
+                    <p>This usually takes 10-30 seconds depending on file size</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Powered by advanced AI</h2>
+                <p>Our AI analyzes your content and generates relevant, engaging questions automatically.</p>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h3>Smart Content Analysis</h3>
+                    <p>Advanced AI algorithms understand context and extract key concepts from any document or image.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-sliders-h"></i>
+                    </div>
+                    <h3>Fully Customizable</h3>
+                    <p>Adjust difficulty, question types, length, and format to match your exact needs.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>Performance Analytics</h3>
+                    <p>Track quiz results, identify knowledge gaps, and optimize learning outcomes.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>Built with AI for students worldwide.</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+</body>
+</html>
