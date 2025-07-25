@@ -98,8 +98,6 @@ function removeFile(index) {
 function updateGenerateButton() {
     if (selectedFiles.length > 0) {
         generateBtn.classList.add('active');
-    } else {
-        generateBtn.classList.remove('active');
     }
 }
 
