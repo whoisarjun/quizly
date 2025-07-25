@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quizly - AI Quiz Generator</title>
+    <title>Quizper - AI Quiz Generator</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 </head>
@@ -12,28 +12,7 @@
     <div class="bg-gradient"></div>
 
     <!-- Header -->
-    <header>
-    <div class="navbar-container">
-        <div class="navbar-bubble">
-            <nav>
-                <a href="#" class="logo">
-                    Quizly
-                </a>
-
-                <div class="nav-divider"></div>
-
-                <ul class="nav-links">
-                    <li><a href="#" class="active">Home</a></li>
-                    <li><a href="#">Features</a></li>
-                    <li><a href="#">About</a></li>
-                    <li><a href="#">Contact</a></li>
-                </ul>
-
-                <a href="#" class="nav-cta">Get Started</a>
-            </nav>
-        </div>
-    </div>
-</header>
+    {% include '_nav.html' %}
 
     <!-- Hero Section -->
     <section class="hero">
@@ -99,18 +78,12 @@
 
                 <div class="file-list" id="fileList"></div>
 
-                <div class="generate-section">
+                <div class="generate-section"><a href="/login">
                     <button class="generate-btn" id="generateBtn">
                         <i class="fas fa-magic"></i>
                         Generate Quiz with AI
                     </button>
-                </div>
-
-                <div class="processing" id="processing">
-                    <div class="spinner"></div>
-                    <h3>AI is analyzing your content...</h3>
-                    <p>This usually takes 10-30 seconds depending on file size</p>
-                </div>
+                </a></div>
             </div>
         </div>
     </section>
