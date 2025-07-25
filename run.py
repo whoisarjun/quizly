@@ -82,5 +82,9 @@ def sign_in():
     else:
         return jsonify({"status": "error", "message": "User not found"}), 200
 
+@app.route('/dashboard', methods=['GET'])
+def dashboard():
+    return render_template('dashboard.html')
+
 if __name__ == '__main__':
     app.run(debug=True, port=6888)

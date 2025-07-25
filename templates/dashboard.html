@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Quizper</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-gradient"></div>
+
+    <!-- Header -->
+    <header>
+        <div class="navbar-container">
+            <div class="navbar-bubble">
+                <nav>
+                    <a href="#" class="logo">
+                        <i class="fas fa-brain"></i>
+                        Quizper
+                    </a>
+                    <div class="nav-divider"></div>
+                    <ul class="nav-links">
+                        <li><a href="#" class="active">Dashboard</a></li>
+                        <li><a href="#">My Projects</a></li>
+                        <li><a href="#">Analytics</a></li>
+                    </ul>
+                    <div class="nav-auth">
+                        <div class="user-menu">
+                            <button class="user-btn" id="userMenuBtn">
+                                <div class="user-avatar">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <span>John Doe</span>
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="user-dropdown" id="userDropdown">
+                                <a href="#"><i class="fas fa-user"></i> Profile</a>
+                                <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                                <a href="#"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="dashboard-main">
+        <div class="container">
+            <!-- Welcome Section -->
+            <section class="welcome-section">
+                <div class="welcome-content">
+                    <h1>Welcome back, John!</h1>
+                    <p>Ready to create some amazing quizzes? Upload your notes and let AI do the magic.</p>
+                </div>
+                <button class="new-project-btn" id="newProjectBtn">
+                    <i class="fas fa-plus"></i>
+                    New Project
+                </button>
+            </section>
+
+            <!-- Stats Cards -->
+            <section class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-folder"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>12</h3>
+                            <p>Total Projects</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-question-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>248</h3>
+                            <p>Quizzes Generated</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>87%</h3>
+                            <p>Average Score</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>24h</h3>
+                            <p>Study Time</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent Projects -->
+            <section class="projects-section">
+                <div class="section-header">
+                    <h2>Recent Projects</h2>
+                    <button class="view-all-btn">View All</button>
+                </div>
+                <div class="projects-grid" id="projectsGrid">
+                    <!-- Projects will be loaded here -->
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- New Project Modal -->
+    <div class="modal-overlay" id="newProjectModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Create New Project</h2>
+                <button class="modal-close" id="closeModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="newProjectForm">
+                    <div class="form-group">
+                        <label for="projectName">Project Name</label>
+                        <input type="text" id="projectName" placeholder="Enter project name..." required>
+                    </div>
+                    <div class="form-group">
+                        <label for="projectDesc">Description (Optional)</label>
+                        <textarea id="projectDesc" placeholder="Brief description of your project..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" id="cancelBtn">Cancel</button>
+                        <button type="submit" class="btn-primary">Create Project</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Detail Modal -->
+    <div class="modal-overlay" id="projectModal">
+        <div class="modal large">
+            <div class="modal-header">
+                <h2 id="projectTitle">Project Name</h2>
+                <button class="modal-close" id="closeProjectModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="project-tabs">
+                    <button class="tab-btn active" data-tab="files">Files</button>
+                    <button class="tab-btn" data-tab="quizzes">Quizzes</button>
+                    <button class="tab-btn" data-tab="settings">Settings</button>
+                </div>
+
+                <!-- Files Tab -->
+                <div class="tab-content active" id="filesTab">
+                    <div class="upload-section">
+                        <div class="upload-zone" id="modalUploadZone">
+                            <div class="upload-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <div class="upload-text">
+                                <h3>Drop files here to add to project</h3>
+                                <p>or click to browse files from your computer</p>
+                            </div>
+                            <button class="upload-btn" id="modalUploadBtn">Browse Files</button>
+                            <input type="file" id="modalFileInput" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt" style="display: none;">
+                        </div>
+                        <div class="file-list" id="modalFileList"></div>
+                    </div>
+                </div>
+
+                <!-- Quizzes Tab -->
+                <div class="tab-content" id="quizzesTab">
+                    <div class="quiz-controls">
+                        <div class="quiz-settings">
+                            <div class="setting-group">
+                                <label for="difficulty">Difficulty Level</label>
+                                <select id="difficulty">
+                                    <option value="easy">Easy</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                            </div>
+                            <div class="setting-group">
+                                <label for="questionCount">Number of Questions</label>
+                                <input type="number" id="questionCount" value="10" min="5" max="50">
+                            </div>
+                            <div class="setting-group">
+                                <label for="questionType">Question Types</label>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-item">
+                                        <input type="checkbox" value="multiple-choice" checked>
+                                        <span>Multiple Choice</span>
+                                    </label>
+                                    <label class="checkbox-item">
+                                        <input type="checkbox" value="true-false">
+                                        <span>True/False</span>
+                                    </label>
+                                    <label class="checkbox-item">
+                                        <input type="checkbox" value="fill-blank">
+                                        <span>Fill in the Blank</span>
+                                    </label>
+                                    <label class="checkbox-item">
+                                        <input type="checkbox" value="short-answer">
+                                        <span>Short Answer</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="generate-quiz-btn" id="generateQuizBtn">
+                            <i class="fas fa-magic"></i>
+                            Generate Quiz
+                        </button>
+                    </div>
+                    <div class="quiz-list" id="quizList">
+                        <!-- Generated quizzes will appear here -->
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div class="tab-content" id="settingsTab">
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label for="editProjectName">Project Name</label>
+                            <input type="text" id="editProjectName" value="">
+                        </div>
+                        <div class="form-group">
+                            <label for="editProjectDesc">Description</label>
+                            <textarea id="editProjectDesc"></textarea>
+                        </div>
+                        <div class="danger-zone">
+                            <h3>Danger Zone</h3>
+                            <p>Once you delete a project, there is no going back. Please be certain.</p>
+                            <button class="btn-danger" id="deleteProjectBtn">Delete Project</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Generating your quiz...</p>
+        </div>
+    </div>
+
+    <!-- Quiz Taking Modal -->
+    <div class="modal-overlay" id="quizTakingModal">
+        <div class="modal large">
+            <div class="modal-header">
+                <h2 id="quizTakingTitle">Quiz</h2>
+                <div class="quiz-progress">
+                    <span id="questionProgress">1 of 10</span>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+                <button class="modal-close" id="closeQuizModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="quiz-container" id="quizContainer">
+                    <!-- Quiz questions will be loaded here -->
+                </div>
+                <div class="quiz-navigation">
+                    <button class="btn-secondary" id="prevQuestion" disabled>Previous</button>
+                    <button class="btn-primary" id="nextQuestion">Next</button>
+                    <button class="btn-primary" id="submitQuiz" style="display: none;">Submit Quiz</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
