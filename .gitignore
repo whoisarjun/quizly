@@ -1,3 +1,11 @@
+# IDE Folders
 .idea
 .venv
+**/__pycache__/
+**/*.pyc
+
+# Temporary
 temp/
+
+# Private/Secrets
+.env

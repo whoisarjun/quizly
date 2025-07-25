@@ -135,40 +135,40 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 });
 
 // Send files to backend
-generateBtn.addEventListener('click', async () => {
-    if (selectedFiles.length === 0) {
-        alert("You need to add files first!");
-        return;
-    }
-    processing.style.display = 'block';
-
-    // Prepare FormData
-    const formData = new FormData();
-    selectedFiles.forEach((file, idx) => {
-        formData.append('files', file); // 'files' is the key for all files
-    });
-
-    try {
-        const response = await fetch('/generate', {
-            method: 'POST',
-            body: formData,
-        });
-
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
-
-        const data = await response.json();
-        console.log('Response:', data);
-
-        // handle success (e.g., show generated quiz or message)
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to generate quiz.');
-    } finally {
-        processing.style.display = 'none';
-        uploadBtn.disabled = false;
-        fileInput.disabled = false;
-        uploadZone.style.pointerEvents = 'auto';
-    }
-});
+// generateBtn.addEventListener('click', async () => {
+//     if (selectedFiles.length === 0) {
+//         alert("You need to add files first!");
+//         return;
+//     }
+//     processing.style.display = 'block';
+//
+//     // Prepare FormData
+//     const formData = new FormData();
+//     selectedFiles.forEach((file, idx) => {
+//         formData.append('files', file); // 'files' is the key for all files
+//     });
+//
+//     try {
+//         const response = await fetch('/generate', {
+//             method: 'POST',
+//             body: formData,
+//         });
+//
+//         if (!response.ok) {
+//             throw new Error('Network response was not ok');
+//         }
+//
+//         const data = await response.json();
+//         console.log('Response:', data);
+//
+//         // handle success (e.g., show generated quiz or message)
+//     } catch (error) {
+//         console.error('Error:', error);
+//         alert('Failed to generate quiz.');
+//     } finally {
+//         processing.style.display = 'none';
+//         uploadBtn.disabled = false;
+//         fileInput.disabled = false;
+//         uploadZone.style.pointerEvents = 'auto';
+//     }
+// });
