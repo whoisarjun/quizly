@@ -82,6 +82,7 @@ def dashboard():
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
+    session.clear()  # wipe any existing session data
     try:
         data = request.get_json()
         email = data.get('email')
@@ -121,6 +122,7 @@ def logout():
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
+    session.clear()  # wipe any existing session data
     try:
         data = request.get_json()
         first_name = data.get('first_name')

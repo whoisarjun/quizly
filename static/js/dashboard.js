@@ -169,6 +169,7 @@ class Dashboard {
             // Show modal and switch to files tab
             document.getElementById('projectModal').classList.add('active');
             this.switchTab('files');
+            document.getElementById('quizTitle').value = `${project.name} Quiz`;
 
             // Render project content
             this.renderProjectFiles();
@@ -381,10 +382,12 @@ class Dashboard {
         try {
             this.showLoading('Generating quiz with AI...');
 
+            const quizTitle = document.getElementById('quizTitle').value.trim() || `${this.currentProject.name} Quiz`;
+
             const result = await this.apiCall(`/projects/${this.currentProject.id}/quizzes/generate`, {
                 method: 'POST',
                 body: JSON.stringify({
-                    title: `${this.currentProject.name} Quiz`,
+                    title: quizTitle,
                     difficulty: difficulty,
                     question_count: questionCount,
                     question_types: questionTypes
@@ -895,6 +898,7 @@ class Dashboard {
                 case 'easy': return '#10b981';
                 case 'medium': return '#f59e0b';
                 case 'hard': return '#ef4444';
+                case 'extreme': return '#8b5cf6';
                 default: return '#6b7280';
             }
         };
@@ -1020,8 +1024,25 @@ class Dashboard {
 
         case 'fill-in-blank':
             const currentAnswers = this.userAnswers[this.currentQuestionIndex] || [];
-            const questionParts = question.text.split('___');
-            let fillInHtml = '<div class="fill-in-instruction">Fill in the blanks:</div><div class="fill-in-question">';
+
+            // Clean the question text by removing "Fill in the blank:" prefix if it exists
+            let cleanQuestionText = question.text;
+            const fillInPrefixes = [
+                'Fill in the blank:',
+                'Fill in the blanks:',
+                'fill in the blank:',
+                'fill in the blanks:'
+            ];
+
+            for (const prefix of fillInPrefixes) {
+                if (cleanQuestionText.toLowerCase().startsWith(prefix.toLowerCase())) {
+                    cleanQuestionText = cleanQuestionText.substring(prefix.length).trim();
+                    break;
+                }
+            }
+
+            const questionParts = cleanQuestionText.split('___');
+            let fillInHtml = '<div class="fill-in-question">';
 
             for (let i = 0; i < questionParts.length; i++) {
                 fillInHtml += `<span>${questionParts[i]}</span>`;
@@ -1074,8 +1095,7 @@ class Dashboard {
     };
 
     // For fill-in-blank questions, show clean question text in header
-    const displayText = question.type === 'fill-in-blank' ?
-        question.text.replace(/___/g, '_____') : question.text;
+    const displayText = question.type === 'fill-in-blank' ? 'Fill in the blank:' : question.text;
 
     container.innerHTML = `
         <div class="question-card">
