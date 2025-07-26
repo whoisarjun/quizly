@@ -1,7 +1,7 @@
 import psycopg2
 import os
 from dotenv import load_dotenv
-from users_db import get_conn
+from .users_db import get_conn
 
 load_dotenv()
 

@@ -39,7 +39,7 @@ def create_project_files_table():
     print("✅ project_files table created (or already existed).")
 
 def add_file_to_project(project_id, original_filename, file_size, mime_type, file_path):
-    """Add a file record to the database"""
+    """Add a file record to the database and return just the file_id"""
     # Generate unique filename to avoid conflicts
     file_extension = os.path.splitext(original_filename)[1]
     unique_filename = f"{uuid.uuid4().hex}{file_extension}"
@@ -49,11 +49,11 @@ def add_file_to_project(project_id, original_filename, file_size, mime_type, fil
     cur.execute("""
                 INSERT INTO project_files (project_id, filename, original_filename, file_size, mime_type, file_path)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING id, upload_date
+                RETURNING id
                 """, (project_id, unique_filename, original_filename, file_size, mime_type, file_path))
 
     result = cur.fetchone()
-    file_id, upload_date = result
+    file_id = result[0]
 
     # Update project's updated_at timestamp
     cur.execute("UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = %s", (project_id,))
@@ -63,17 +63,7 @@ def add_file_to_project(project_id, original_filename, file_size, mime_type, fil
     conn.close()
 
     print(f"✅ Added file '{original_filename}' to project {project_id}")
-    return {
-        'id': file_id,
-        'project_id': project_id,
-        'filename': unique_filename,
-        'original_filename': original_filename,
-        'file_size': file_size,
-        'mime_type': mime_type,
-        'file_path': file_path,
-        'upload_date': upload_date,
-        'processed': False
-    }
+    return file_id  # Return just the ID, not the full object
 
 def get_project_files(project_id):
     """Get all files for a specific project"""

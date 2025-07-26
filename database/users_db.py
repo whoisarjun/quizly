@@ -59,16 +59,21 @@ def validate_user(email, plain_password):
     cur = conn.cursor()
     cur.execute("SELECT password FROM users WHERE email = %s", (email,))
     result = cur.fetchone()
-    cur.close()
-    conn.close()
 
     if not result:
+        cur.close()
+        conn.close()
         return False, {"status": "error", "message": "User not found"}
+
+    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+    user_id = cur.fetchone()
+    cur.close()
+    conn.close()
 
     stored_hash = result[0]
     try:
         ph.verify(stored_hash, plain_password)
-        return True, {"status": "success", "message": "Login successful"}
+        return True, {"status": "success", "message": "Login successful", "user_id": user_id}
     except VerifyMismatchError:
         return False, {"status": "error", "message": "Invalid password"}
 

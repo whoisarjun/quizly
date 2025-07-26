@@ -1,8 +1,7 @@
-from users_db import create_users_table
-from projects_db import create_projects_table
-from files_db import create_project_files_table
-from quizzes_db import create_quiz_tables
-
+from .users_db import create_users_table
+from .projects_db import create_projects_table
+from .files_db import create_project_files_table
+from .quizzes_db import create_quiz_tables
 
 def init_all_tables():
     print("Starting database initialization...")
@@ -25,7 +24,6 @@ def init_all_tables():
 
     except Exception as e:
         print(f"\nError during database initialization: {e}")
-
 
 if __name__ == "__main__":
     init_all_tables()

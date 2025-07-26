@@ -41,8 +41,8 @@ def create_quiz_tables():
                     quiz_id        INTEGER NOT NULL,
                     question_text  TEXT    NOT NULL,
                     question_type  VARCHAR(50) DEFAULT 'multiple-choice',
-                    options        JSON    NOT NULL,
-                    correct_answer INTEGER NOT NULL,
+                    options        JSON,
+                    correct_answer TEXT NOT NULL,
                     explanation    TEXT,
                     question_order INTEGER NOT NULL,
                     FOREIGN KEY (quiz_id) REFERENCES quizzes (id) ON DELETE CASCADE
@@ -68,6 +68,18 @@ def create_quiz_tables():
     cur.close()
     conn.close()
     print("✅ Quiz tables created (or already existed).")
+
+def normalize_correct_answer(correct_answer, question_type):
+    """Convert correct_answer to appropriate format for database storage"""
+    if question_type == 'multiple-choice' or question_type == 'true-false':
+        return int(correct_answer)
+    elif question_type == 'fill-in-blank':
+        # Store as JSON string for arrays
+        if isinstance(correct_answer, list):
+            return json.dumps(correct_answer)
+        return str(correct_answer)
+    else:  # short-answer
+        return str(correct_answer)
 
 def create_quiz(project_id, title, difficulty, questions):
     """Create a new quiz with questions"""
@@ -95,8 +107,8 @@ def create_quiz(project_id, title, difficulty, questions):
                             quiz_id,
                             question['text'],
                             question.get('type', 'multiple-choice'),
-                            json.dumps(question['options']),
-                            question['correct_answer'],
+                            json.dumps(question['options']) if question['options'] is not None else None,
+                            normalize_correct_answer(question['correct_answer'], question.get('type', 'multiple-choice')),
                             question.get('explanation', ''),
                             i + 1
                         ))
@@ -204,7 +216,7 @@ def get_quiz_with_questions(quiz_id, user_id):
             'id': row[0],
             'text': row[1],
             'type': row[2],
-            'options': json.loads(row[3]),
+            'options': row[3],
             'correct_answer': row[4],
             'explanation': row[5],
             'order': row[6]
