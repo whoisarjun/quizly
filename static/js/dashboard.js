@@ -312,7 +312,7 @@ class Dashboard {
                 this.showNotification(`${result.uploaded_files.length} files uploaded successfully!`, 'success');
 
                 // Refresh project data
-                await this.refreshCurrentProject();
+                await this.refreshProjectWithStats();
             }
 
             if (result.failed_files.length > 0) {
@@ -349,6 +349,55 @@ class Dashboard {
         }
     }
 
+    async refreshProjectWithStats() {
+        if (!this.currentProject) return;
+
+        try {
+            const [updatedProject, projectStats] = await Promise.all([
+                this.loadProject(this.currentProject.id),
+                this.apiCall(`/projects/${this.currentProject.id}/stats`).catch(() => null)
+            ]);
+
+            if (updatedProject) {
+                // Merge project data with stats
+                if (projectStats && projectStats.quizzes) {
+                    updatedProject.quizzes = updatedProject.quizzes?.map(quiz => {
+                        const quizStats = projectStats.quizzes.find(s => s.quiz_id === quiz.id);
+                        if (quizStats) {
+                            return {
+                                ...quiz,
+                                attempt_count: quizStats.attempt_count || 0,
+                                best_score: quizStats.best_score || 0,
+                                avg_score: quizStats.avg_score || 0,
+                                last_attempt: quizStats.last_attempt
+                            };
+                        }
+                        return quiz;
+                    });
+                }
+
+                this.currentProject = updatedProject;
+                this.renderProjectFiles();
+                this.renderProjectQuizzes();
+
+                // Update projects list
+                const projectIndex = this.projects.findIndex(p => p.id === this.currentProject.id);
+                if (projectIndex !== -1) {
+                    this.projects[projectIndex] = {
+                        ...this.projects[projectIndex],
+                        file_count: updatedProject.files?.length || 0,
+                        quiz_count: updatedProject.quizzes?.length || 0
+                    };
+                }
+                this.renderProjects();
+            }
+        } catch (error) {
+            console.error('Failed to refresh project with stats:', error);
+            // Fallback to basic refresh
+            await this.refreshCurrentProject();
+        }
+    }
+
     async removeFile(fileId, isSelected = false) {
         if (isSelected) {
             // Handle selected files (before upload)
@@ -365,7 +414,7 @@ class Dashboard {
             });
 
             this.showNotification('File deleted successfully!', 'success');
-            await this.refreshCurrentProject();
+            await this.refreshProjectWithStats();
 
         } catch (error) {
             // Error already handled
@@ -429,7 +478,7 @@ class Dashboard {
             this.showNotification('Quiz generated successfully!', 'success');
 
             // Refresh project data to show new quiz
-            await this.refreshCurrentProject();
+            await this.refreshProjectWithStats();
             this.renderProjectQuizzes();
 
         } catch (error) {
@@ -510,7 +559,7 @@ class Dashboard {
             });
 
             this.showNotification('Quiz deleted successfully!', 'success');
-            await this.refreshCurrentProject();
+            await this.refreshProjectWithStats();
             this.renderProjectQuizzes();
 
         } catch (error) {
@@ -984,176 +1033,181 @@ class Dashboard {
     }
 
     createQuizItem(quiz) {
-    const item = document.createElement('div');
-    item.className = 'quiz-item';
+        const item = document.createElement('div');
+        item.className = 'quiz-item';
 
-    const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    };
+        const formatDate = (dateString) => {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        };
 
-    const getDifficultyColor = (difficulty) => {
-        switch (difficulty) {
-            case 'easy': return '#10b981';
-            case 'medium': return '#f59e0b';
-            case 'hard': return '#ef4444';
-            case 'extreme': return '#c306ff';
-            default: return '#6b7280';
-        }
-    };
+        const getDifficultyColor = (difficulty) => {
+            switch (difficulty) {
+                case 'easy': return '#10b981';
+                case 'medium': return '#f59e0b';
+                case 'hard': return '#ef4444';
+                case 'extreme': return '#c306ff';
+                default: return '#6b7280';
+            }
+        };
 
-    const getPerformanceColor = (score) => {
-        if (score >= 90) return '#10b981';
-        if (score >= 80) return '#22c55e';
-        if (score >= 70) return '#f59e0b';
-        if (score >= 60) return '#fb923c';
-        return '#ef4444';
-    };
+        const getPerformanceColor = (score) => {
+            if (score >= 90) return '#10b981';
+            if (score >= 80) return '#22c55e';
+            if (score >= 70) return '#f59e0b';
+            if (score >= 60) return '#fb923c';
+            return '#ef4444';
+        };
 
-    const getPerformanceIcon = (score) => {
-        if (score >= 90) return 'fa-trophy';
-        if (score >= 80) return 'fa-medal';
-        if (score >= 70) return 'fa-thumbs-up';
-        if (score >= 60) return 'fa-meh';
-        return 'fa-thumbs-down';
-    };
+        const getPerformanceIcon = (score) => {
+            if (score >= 90) return 'fa-trophy';
+            if (score >= 80) return 'fa-medal';
+            if (score >= 70) return 'fa-thumbs-up';
+            if (score >= 60) return 'fa-meh';
+            return 'fa-thumbs-down';
+        };
 
-    item.innerHTML = `
-        <div class="quiz-header">
-            <div class="quiz-info">
-                <h4 class="quiz-title">${quiz.title}</h4>
-                <div class="quiz-meta">
-                    <span class="quiz-date">Created ${formatDate(quiz.created_at)}</span>
-                    <span class="quiz-difficulty" style="color: ${getDifficultyColor(quiz.difficulty)}">
-                        <i class="fas fa-signal"></i> ${quiz.difficulty}
-                    </span>
-                </div>
-            </div>
-            <div class="quiz-actions">
-                <button class="quiz-btn primary" onclick="dashboard.takeQuiz(${quiz.id})" title="Start a new attempt">
-                    <i class="fas fa-play"></i> Take Quiz
-                </button>
-                <button class="quiz-btn" onclick="dashboard.toggleQuizHistory(${quiz.id}, this)" title="View attempt history">
-                    <i class="fas fa-history"></i> History
-                </button>
-                <button class="quiz-btn" onclick="dashboard.showQuizAnalytics(${quiz.id})" title="View detailed analytics">
-                    <i class="fas fa-chart-bar"></i> Analytics
-                </button>
-                <button class="quiz-btn" onclick="dashboard.downloadQuiz(${quiz.id})" title="Download quiz">
-                    <i class="fas fa-download"></i> Export
-                </button>
-                <button class="quiz-btn danger" onclick="dashboard.deleteQuiz(${quiz.id})" title="Delete quiz">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-        
-        <div class="quiz-stats-grid">
-            <div class="quiz-stat">
-                <div class="stat-icon">
-                    <i class="fas fa-question-circle"></i>
-                </div>
-                <div class="stat-content">
-                    <span class="stat-number">${quiz.question_count}</span>
-                    <span class="stat-label">Questions</span>
-                </div>
-            </div>
-            <div class="quiz-stat">
-                <div class="stat-icon">
-                    <i class="fas fa-redo"></i>
-                </div>
-                <div class="stat-content">
-                    <span class="stat-number">${quiz.attempt_count || 0}</span>
-                    <span class="stat-label">Attempts</span>
-                </div>
-            </div>
-            <div class="quiz-stat">
-                <div class="stat-icon" style="color: ${getPerformanceColor(quiz.last_score || 0)}">
-                    <i class="fas ${getPerformanceIcon(quiz.last_score || 0)}"></i>
-                </div>
-                <div class="stat-content">
-                    <span class="stat-number" style="color: ${getPerformanceColor(quiz.last_score || 0)}">${quiz.last_score || 0}%</span>
-                    <span class="stat-label">Best Score</span>
-                </div>
-            </div>
-            <div class="quiz-stat">
-                <div class="stat-icon">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <div class="stat-content">
-                    <span class="stat-number">${Math.ceil((quiz.question_count || 10) * 1.5)}</span>
-                    <span class="stat-label">Est. Minutes</span>
-                </div>
-            </div>
-        </div>
-        
-        ${(quiz.attempt_count > 0) ? `
-            <div class="quiz-performance-summary">
-                <div class="performance-indicator">
-                    <div class="performance-bar">
-                        <div class="performance-fill" style="width: ${quiz.last_score || 0}%; background: ${getPerformanceColor(quiz.last_score || 0)};"></div>
+        // FIX: Ensure we have proper data with fallbacks
+        const attemptCount = quiz.attempt_count || quiz.attempts || 0;
+        const bestScore = quiz.best_score || quiz.last_score || quiz.highest_score || 0;
+        const avgScore = quiz.avg_score || quiz.average_score || bestScore;
+
+        item.innerHTML = `
+            <div class="quiz-header">
+                <div class="quiz-info">
+                    <h4 class="quiz-title">${quiz.title}</h4>
+                    <div class="quiz-meta">
+                        <span class="quiz-date">Created ${formatDate(quiz.created_at)}</span>
+                        <span class="quiz-difficulty" style="color: ${getDifficultyColor(quiz.difficulty)}">
+                            <i class="fas fa-signal"></i> ${quiz.difficulty}
+                        </span>
                     </div>
-                    <span class="performance-text">
-                        ${quiz.last_score >= 90 ? 'Excellent Performance!' : 
-                          quiz.last_score >= 80 ? 'Great Job!' :
-                          quiz.last_score >= 70 ? 'Good Work!' :
-                          quiz.last_score >= 60 ? 'Keep Practicing!' : 'Needs Improvement'}
-                    </span>
                 </div>
-            </div>
-        ` : `
-            <div class="quiz-performance-summary">
-                <div class="no-attempts-message">
-                    <i class="fas fa-play-circle"></i>
-                    <span>Take your first attempt to see performance insights!</span>
-                </div>
-            </div>
-        `}
-        
-        <div class="quiz-history" id="history-${quiz.id}" style="display: none;">
-            <div class="history-header">
-                <h5><i class="fas fa-history"></i> Attempt History</h5>
-                <div class="history-controls">
-                    <button class="history-control-btn" onclick="dashboard.refreshQuizHistory(${quiz.id})" title="Refresh history">
-                        <i class="fas fa-sync-alt"></i>
+                <div class="quiz-actions">
+                    <button class="quiz-btn primary" onclick="dashboard.takeQuiz(${quiz.id})" title="Start a new attempt">
+                        <i class="fas fa-play"></i> Take Quiz
                     </button>
-                    <button class="history-control-btn" onclick="dashboard.exportQuizHistory(${quiz.id})" title="Export all attempts">
-                        <i class="fas fa-download"></i>
+                    <button class="quiz-btn" onclick="dashboard.toggleQuizHistory(${quiz.id}, this)" title="View attempt history">
+                        <i class="fas fa-history"></i> History
+                    </button>
+                    <button class="quiz-btn" onclick="dashboard.showQuizAnalytics(${quiz.id})" title="View detailed analytics">
+                        <i class="fas fa-chart-bar"></i> Analytics
+                    </button>
+                    <button class="quiz-btn" onclick="dashboard.downloadQuiz(${quiz.id})" title="Download quiz">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                    <button class="quiz-btn danger" onclick="dashboard.deleteQuiz(${quiz.id})" title="Delete quiz">
+                        <i class="fas fa-trash"></i>
                     </button>
                 </div>
-                <div class="history-loading" style="display: none;">
-                    <i class="fas fa-spinner fa-spin"></i> Loading...
+            </div>
+            
+            <div class="quiz-stats-grid">
+                <div class="quiz-stat">
+                    <div class="stat-icon">
+                        <i class="fas fa-question-circle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-number">${quiz.question_count || 0}</span>
+                        <span class="stat-label">Questions</span>
+                    </div>
+                </div>
+                <div class="quiz-stat">
+                    <div class="stat-icon">
+                        <i class="fas fa-redo"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-number">${attemptCount}</span>
+                        <span class="stat-label">Attempts</span>
+                    </div>
+                </div>
+                <div class="quiz-stat">
+                    <div class="stat-icon" style="color: ${getPerformanceColor(bestScore)}">
+                        <i class="fas ${getPerformanceIcon(bestScore)}"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-number" style="color: ${getPerformanceColor(bestScore)}">${bestScore}%</span>
+                        <span class="stat-label">Best Score</span>
+                    </div>
+                </div>
+                <div class="quiz-stat">
+                    <div class="stat-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-number">${Math.ceil((quiz.question_count || 10) * 1.5)}</span>
+                        <span class="stat-label">Est. Minutes</span>
+                    </div>
                 </div>
             </div>
-            <div class="history-content">
-                <!-- History will be loaded here -->
-            </div>
-        </div>
-        
-        <div class="quiz-analytics" id="analytics-${quiz.id}" style="display: none;">
-            <div class="analytics-header">
-                <h5><i class="fas fa-chart-bar"></i> Performance Analytics</h5>
-                <div class="analytics-loading" style="display: none;">
-                    <i class="fas fa-spinner fa-spin"></i> Loading analytics...
+            
+            ${(attemptCount > 0) ? `
+                <div class="quiz-performance-summary">
+                    <div class="performance-indicator">
+                        <div class="performance-bar">
+                            <div class="performance-fill" style="width: ${bestScore}%; background: ${getPerformanceColor(bestScore)};"></div>
+                        </div>
+                        <span class="performance-text">
+                            ${bestScore >= 90 ? 'Excellent Performance!' : 
+                              bestScore >= 80 ? 'Great Job!' :
+                              bestScore >= 70 ? 'Good Work!' :
+                              bestScore >= 60 ? 'Keep Practicing!' : 'Needs Improvement'}
+                        </span>
+                    </div>
+                </div>
+            ` : `
+                <div class="quiz-performance-summary">
+                    <div class="no-attempts-message">
+                        <i class="fas fa-play-circle"></i>
+                        <span>Take your first attempt to see performance insights!</span>
+                    </div>
+                </div>
+            `}
+            
+            <div class="quiz-history" id="history-${quiz.id}" style="display: none;">
+                <div class="history-header">
+                    <h5><i class="fas fa-history"></i> Attempt History</h5>
+                    <div class="history-controls">
+                        <button class="history-control-btn" onclick="dashboard.refreshQuizHistory(${quiz.id})" title="Refresh history">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="history-control-btn" onclick="dashboard.exportQuizHistory(${quiz.id})" title="Export all attempts">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                    <div class="history-loading" style="display: none;">
+                        <i class="fas fa-spinner fa-spin"></i> Loading...
+                    </div>
+                </div>
+                <div class="history-content">
+                    <!-- History will be loaded here -->
                 </div>
             </div>
-            <div class="analytics-content">
-                <!-- Analytics will be loaded here -->
+            
+            <div class="quiz-analytics" id="analytics-${quiz.id}" style="display: none;">
+                <div class="analytics-header">
+                    <h5><i class="fas fa-chart-bar"></i> Performance Analytics</h5>
+                    <div class="analytics-loading" style="display: none;">
+                        <i class="fas fa-spinner fa-spin"></i> Loading analytics...
+                    </div>
+                </div>
+                <div class="analytics-content">
+                    <!-- Analytics will be loaded here -->
+                </div>
             </div>
-        </div>
-    `;
+        `;
 
-    // Process LaTeX in quiz title and other content
-    this.processLatexInElement(item);
+        // Process LaTeX in quiz title and other content
+        this.processLatexInElement(item);
 
-    return item;
-}
+        return item;
+    }
 
     // ==============================
     // QUIZ UI METHODS
@@ -1498,40 +1552,40 @@ class Dashboard {
 }
 
     async toggleQuizHistory(quizId, button) {
-        const historyDiv = document.getElementById(`history-${quizId}`);
-        const historyContent = historyDiv.querySelector('.history-content');
-        const loadingDiv = historyDiv.querySelector('.history-loading');
-        const icon = button.querySelector('i');
+    const historyDiv = document.getElementById(`history-${quizId}`);
+    const historyContent = historyDiv.querySelector('.history-content');
+    const loadingDiv = historyDiv.querySelector('.history-loading');
+    const icon = button.querySelector('i');
 
-        if (historyDiv.style.display === 'none') {
-            // Show history
-            historyDiv.style.display = 'block';
-            icon.className = 'fas fa-chevron-up';
-            button.innerHTML = '<i class="fas fa-chevron-up"></i> Hide History';
+    if (historyDiv.style.display === 'none') {
+        // Show history
+        historyDiv.style.display = 'block';
+        icon.className = 'fas fa-chevron-up';
+        button.innerHTML = '<i class="fas fa-chevron-up"></i> Hide History';
 
-            // Load attempts if not already loaded
-            if (!historyContent.hasChildNodes()) {
-                try {
-                    loadingDiv.style.display = 'block';
-                    const attempts = await this.getQuizAttempts(quizId);
-                    this.renderQuizHistory(historyContent, attempts);
-                    loadingDiv.style.display = 'none';
-                } catch (error) {
-                    loadingDiv.style.display = 'none';
-                    historyContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load history</p>';
-                }
-            }
-        } else {
-            // Hide history
-            historyDiv.style.display = 'none';
-            icon.className = 'fas fa-history';
-            button.innerHTML = '<i class="fas fa-history"></i> History';
+        // FIX: Always load attempts when showing history, don't wait for manual refresh
+        try {
+            loadingDiv.style.display = 'block';
+            historyContent.innerHTML = ''; // Clear any old content
+
+            const attempts = await this.getQuizAttempts(quizId);
+            this.renderQuizHistory(historyContent, attempts);
+            loadingDiv.style.display = 'none';
+        } catch (error) {
+            loadingDiv.style.display = 'none';
+            historyContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load history</p>';
         }
+    } else {
+        // Hide history
+        historyDiv.style.display = 'none';
+        icon.className = 'fas fa-history';
+        button.innerHTML = '<i class="fas fa-history"></i> History';
     }
+}
 
     async getQuizAttempts(quizId) {
         try {
-            const response = await this.apiCall(`/api/quizzes/${quizId}/attempts`);
+            const response = await this.apiCall(`/quizzes/${quizId}/attempts`);
             return response.attempts || [];
         } catch (error) {
             console.error('Failed to get quiz attempts:', error);
@@ -1548,7 +1602,7 @@ class Dashboard {
         container.innerHTML = '';
 
         attempts.forEach((attempt, index) => {
-            const attemptItem = this.createAttemptItem(attempt, index + 1);
+            const attemptItem = this.createAttemptItem(attempt, attempts.length - index);
             container.appendChild(attemptItem);
         });
     }
@@ -1642,7 +1696,7 @@ class Dashboard {
         try {
             this.showLoading('Loading attempt details...');
 
-            const attempt = await this.apiCall(`/api/quiz-attempts/${attemptId}`);
+            const attempt = await this.apiCall(`/quiz-attempts/${attemptId}`);
 
             this.hideLoading();
             this.showAttemptDetailsModal(attempt);
@@ -1764,7 +1818,7 @@ class Dashboard {
         try {
             this.showLoading('Re-validating with AI...');
 
-            const result = await this.apiCall(`/api/quiz-attempts/${attemptId}/revalidate`, {
+            const result = await this.apiCall(`/quiz-attempts/${attemptId}/revalidate`, {
                 method: 'POST'
             });
 
@@ -1773,7 +1827,7 @@ class Dashboard {
 
             // Refresh the quiz list to show updated results
             if (this.currentProject) {
-                await this.refreshCurrentProject();
+                await this.refreshProjectWithStats();
                 this.renderProjectQuizzes();
             }
 
@@ -1787,7 +1841,7 @@ class Dashboard {
         try {
             this.showLoading('Generating results...');
 
-            const attempt = await this.apiCall(`/api/quiz-attempts/${attemptId}`);
+            const attempt = await this.apiCall(`/quiz-attempts/${attemptId}`);
 
             // Create downloadable content
             let content = `QUIZ ATTEMPT RESULTS\n`;
@@ -1848,35 +1902,35 @@ class Dashboard {
     }
 
     async showQuizAnalytics(quizId) {
-        const analyticsDiv = document.getElementById(`analytics-${quizId}`);
-        const analyticsContent = analyticsDiv.querySelector('.analytics-content');
-        const loadingDiv = analyticsDiv.querySelector('.analytics-loading');
+    const analyticsDiv = document.getElementById(`analytics-${quizId}`);
+    const analyticsContent = analyticsDiv.querySelector('.analytics-content');
+    const loadingDiv = analyticsDiv.querySelector('.analytics-loading');
 
-        if (analyticsDiv.style.display === 'none') {
-            // Show analytics
-            analyticsDiv.style.display = 'block';
+    if (analyticsDiv.style.display === 'none') {
+        // Show analytics
+        analyticsDiv.style.display = 'block';
 
-            // Load analytics if not already loaded
-            if (!analyticsContent.hasChildNodes()) {
-                try {
-                    loadingDiv.style.display = 'block';
-                    const analytics = await this.getQuizAnalytics(quizId);
-                    this.renderQuizAnalytics(analyticsContent, analytics);
-                    loadingDiv.style.display = 'none';
-                } catch (error) {
-                    loadingDiv.style.display = 'none';
-                    analyticsContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load analytics</p>';
-                }
-            }
-        } else {
-            // Hide analytics
-            analyticsDiv.style.display = 'none';
+        // FIX: Always load analytics when showing, don't wait for manual action
+        try {
+            loadingDiv.style.display = 'block';
+            analyticsContent.innerHTML = ''; // Clear any old content
+
+            const analytics = await this.getQuizAnalytics(quizId);
+            this.renderQuizAnalytics(analyticsContent, analytics);
+            loadingDiv.style.display = 'none';
+        } catch (error) {
+            loadingDiv.style.display = 'none';
+            analyticsContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load analytics</p>';
         }
+    } else {
+        // Hide analytics
+        analyticsDiv.style.display = 'none';
     }
+}
 
     async getQuizAnalytics(quizId) {
         try {
-            const response = await this.apiCall(`/api/quizzes/${quizId}/analytics`);
+            const response = await this.apiCall(`/quizzes/${quizId}/analytics`);
             return response;
         } catch (error) {
             console.error('Failed to get quiz analytics:', error);

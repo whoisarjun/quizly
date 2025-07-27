@@ -23,6 +23,26 @@ def ask(prompt):
     return response.output_text
 
 def generate_quiz_prompt(content, specifications):
+    difficulty_instructions = {
+        'easy': (
+            "Focus on basic recall. Questions should test direct knowledge such as definitions, formulas, facts, or statements that appear explicitly in the source material. "
+            "Avoid complexity, ambiguity, or multi-step reasoning. Questions should be answerable by someone who has read or reviewed the material once or twice."
+        ),
+        'medium': (
+            "Test comprehension. Questions should go beyond recall and evaluate the student's understanding of concepts. "
+            "Include items that involve identifying relationships, understanding processes, or recognizing cause-effect links. "
+            "Incorrect options in multiple-choice questions should be plausible but clearly incorrect to a student with solid understanding."
+        ),
+        'hard': (
+            "Require application and analysis. Questions should assess the student's ability to apply knowledge in context, draw comparisons, or synthesize ideas from different sections. "
+            "Include multi-step problems, subtle distractors in MCQs, or scenarios that require drawing from more than one part of the material to arrive at the correct answer."
+        ),
+        'extreme': (
+            "Challenge high-level reasoning and inference. Questions should test abstract thinking, deep synthesis across multiple topics, or the ability to evaluate complex or hypothetical scenarios. "
+            "May involve identifying contradictions, edge cases, or the implications of modifying key assumptions from the material. These questions should be solvable but only by those with expert-level understanding."
+        )
+    }
+    diff_instr = difficulty_instructions.get(specifications['difficulty'], '')
     return ask(f"""
 You are a world-class educational AI that specializes in generating challenging, accurate, and pedagogically-sound quizzes.
 
@@ -31,19 +51,21 @@ You will receive content such as lecture notes, textbook excerpts, study materia
 1. Carefully analyze the content to understand key concepts, facts, and relationships.
 2. Generate a quiz consisting of {specifications['questions']} questions (no more, no less). The question types should be {specifications['question_types']} that test understanding, not just memory. You need to have at least one of each of the question types provided.
 3. Your questions will be in the form of a json list and the questions will be as such:
+4. If your question requires LaTeX (and only if it does), enclose the LaTeX code in backticks — for example, `\\sin{{x}}`.
+5. Ensure your response is in a json format but parseable as a python string
 
 For every question:
 {{
-    "text": &lt;question, and for fill-in-blank, use only three underscores to denote each blank to be filled&gt;,
-    "type": &lt;"multiple-choice" or "true-false" or "short-answer" or "fill-in-blank", depending on the question type&gt;,
+    "text": <question, and for fill-in-blank, use only three underscores to denote each blank to be filled>,
+    "type": <"multiple-choice" or "true-false" or "short-answer" or "fill-in-blank", depending on the question type>,
     "options": {{
-        "A": "&lt;option 1&gt;",
-        "B": "&lt;option 2&gt;",
-        "C": "&lt;option 3&gt;",
-        "D": "&lt;option 4&gt;"
+        "A": "<option 1>",
+        "B": "<option 2>",
+        "C": "<option 3>",
+        "D": "<option 4>"
     }} for mcq questions, null for everything else,
-    "correct_answer": &lt;index of current answer from 0-3 for mcq, 0=True 1=False for true-false, ideal answer for short answer, and an array with the right answers for fill in the blanks&gt;
-    "explanation": &lt;good and brief explanation to really help the student understand&gt;
+    "correct_answer": <index of current answer from 0-3 for mcq, 0=True 1=False for true-false, ideal answer for short answer, and an array with the right answers for fill in the blanks>
+    "explanation": <good and brief explanation to really help the student understand>
 }}
 Your response must be a list like this: {{"questions": [...]}} filled with the questions in the format specified above. Do not include any other things except the pure json itself (no markers such as ```json either)
 
@@ -52,7 +74,7 @@ Your response must be a list like this: {{"questions": [...]}} filled with the q
 - Focus on critical thinking and application-based questions where possible.
 - Use clear, academic language but keep it student-friendly.
 - Do not ask questions unrelated to the input content.
-- The quiz difficulty must be {specifications['difficulty']}
+- The quiz difficulty must be {specifications['difficulty']}. {diff_instr}
 
 Now generate the quiz based on the following content:
 
@@ -331,7 +353,7 @@ class AnswerValidator:
 
     def __init__(self):
         self.validation_prompt_template = """
-You are an expert educator and grader. Your task is to validate student answers against quiz questions based on the provided course materials. You will be chatting directly to the student, so comments must speak directly to the student using 2nd pronouns.
+You are an expert educator and grader. Your task is to validate student answers against quiz questions based ONLY on the provided course materials. You will be chatting directly to the student, so comments must speak directly to the student using 2nd pronouns.
 
 ## COURSE MATERIALS:
 {file_content}
@@ -352,8 +374,7 @@ You are an expert educator and grader. Your task is to validate student answers 
 7. Ensure that the score is calculated accurately based on the individual grade for each question
 
 ## OUTPUT FORMAT:
-Return a JSON object with this exact structure:
-```json
+Return a pure JSON object with this exact structure (ensure it is EXACTLY this structure):
 {
     "validation_results": [
         {
@@ -361,18 +382,17 @@ Return a JSON object with this exact structure:
             "question_type": "multiple-choice",
             "student_answer": "Selected option or text",
             "expected_answer": "Correct option or expected text",
-            "is_correct": true/false,
-            "score_percentage": 85,
+            "is_correct": <true/false>,
+            "score_percentage": <variable 0-100 for short answer and fill in the blanks what you think is appropriate, 0 or 100 for true/false or mcqs>,
             "feedback": "Detailed explanation of why this answer is correct/incorrect",
             "partial_credit_details": "Explanation if partial credit given"
         }
     ],
-    "overall_score": 87.5,
-    "total_questions": 10,
-    "correct_answers": 8,
+    "overall_score": <insert the average of the scores of each question>,
+    "total_questions": <total questions>,
+    "correct_answers": <how many correct>,
     "summary": "Overall performance summary"
 }
-```
 
 Validate the answers now:
 """

@@ -9,9 +9,12 @@ from functools import wraps
 from database import db_init, db_utils, files_db, projects_db, quizzes_db, users_db
 from file_manager import text_extractor
 from llm import chatbot
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__, static_folder='static')
-app.config['SECRET_KEY'] = 'your-secret-key-here'
+app.config['SECRET_KEY'] = os.getenv('API_SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = 'uploads/'
 app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024  # 25MB max file size
 
@@ -23,6 +26,11 @@ ph = PasswordHasher()
 chatbot.set_model('gpt-4.1-nano')
 answer_validator = chatbot.AnswerValidator()
 
+# ==============================
+# TO-DO LIST
+# ==============================
+
+# TODO: Delete quizzes
 
 # ==============================
 # UTILITY FUNCTIONS
@@ -580,6 +588,76 @@ def get_project_quiz_attempts(project_id):
     except Exception as e:
         return handle_error(e, "Failed to get project quiz attempts")
 
+@app.route('/api/quizzes/<int:quiz_id>', methods=['DELETE'])
+@require_auth
+def delete_quiz_api(quiz_id):
+    """Delete a quiz"""
+    try:
+        user_id = get_current_user_id()
+
+        # Delete the quiz (function checks user permission)
+        success = quizzes_db.delete_quiz(quiz_id, user_id)
+
+        if not success:
+            return jsonify({
+                'error': {
+                    'code': 'NOT_FOUND',
+                    'message': 'Quiz not found or access denied'
+                }
+            }), 404
+
+        return jsonify({
+            'message': 'Quiz deleted successfully',
+            'quiz_id': quiz_id
+        })
+
+    except Exception as e:
+        return handle_error(e, "Failed to delete quiz")
+
+@app.route('/api/projects/<int:project_id>/stats', methods=['GET'])
+@require_auth
+def get_project_stats_detailed(project_id):
+    """Get detailed quiz statistics for a specific project"""
+    try:
+        user_id = get_current_user_id()
+
+        if not db_utils.verify_project_ownership(project_id, user_id):
+            return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}}), 403
+
+        # Get all quizzes for this project
+        project_quizzes = quizzes_db.get_project_quizzes(project_id)
+
+        quiz_stats = []
+        for quiz in project_quizzes:
+            # Get attempts for this quiz
+            attempts = quizzes_db.get_quiz_attempts_history(quiz['id'], user_id)
+
+            if attempts:
+                scores = [attempt['score'] for attempt in attempts]
+                quiz_stat = {
+                    "quiz_id": quiz['id'],
+                    "attempt_count": len(attempts),
+                    "best_score": max(scores),
+                    "avg_score": round(sum(scores) / len(scores), 1),
+                    "last_attempt": attempts[0]['submitted_at'].isoformat() if attempts[0]['submitted_at'] else None
+                }
+            else:
+                quiz_stat = {
+                    "quiz_id": quiz['id'],
+                    "attempt_count": 0,
+                    "best_score": 0,
+                    "avg_score": 0,
+                    "last_attempt": None
+                }
+
+            quiz_stats.append(quiz_stat)
+
+        return jsonify({
+            "quizzes": quiz_stats
+        })
+
+    except Exception as e:
+        return handle_error(e, "Failed to get project stats")
 
 @app.route('/api/projects/<int:project_id>/analytics', methods=['GET'])
 @require_auth
@@ -746,7 +824,7 @@ def submit_quiz(quiz_id):
                     'detailed_feedback': True
                 })
 
-        correct_answers = 0
+        individual_scores = []
         total_questions = len(quiz['questions'])
         results = []
 
@@ -795,10 +873,7 @@ def submit_quiz(quiz_id):
                 else:
                     feedback = "No answer provided."
 
-            if score_percentage >= 100:
-                correct_answers += 1
-            elif score_percentage > 0:
-                correct_answers += (score_percentage / 100)
+            individual_scores.append(score_percentage)
 
             results.append({
                 'question_id': question['id'],
@@ -811,15 +886,19 @@ def submit_quiz(quiz_id):
                 'feedback': feedback
             })
 
-        # Calculate overall score
-        score = round((correct_answers / total_questions) * 100) if total_questions > 0 else 0
+        # Calculate overall score as average of individual question scores
+        score = round(sum(individual_scores) / len(individual_scores)) if individual_scores else 0
+
+        # Calculate correct answers for display purposes
+        correct_answers = sum(1 for s in individual_scores if s >= 100)
+        total_correct_equivalent = correct_answers + (sum(s for s in individual_scores if 0 < s < 100) / 100)
 
         # Save attempt
         attempt_id = quizzes_db.submit_quiz_attempt(quiz_id, user_id, answers, score)
 
         return jsonify({
             'score': score,
-            'correct_answers': int(correct_answers),
+            'correct_answers': int(total_correct_equivalent),
             'total_questions': total_questions,
             'time_taken': data.get('time_taken', 0),
             'results': results,

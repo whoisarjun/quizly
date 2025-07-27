@@ -362,8 +362,8 @@ def get_quiz_attempt(attempt_id, user_id):
         'user_id': result[2],
         'score': result[3],
         'submitted_at': result[4],
-        'answers': json.loads(result[5]) if result[5] else [],
-        'validation_results': json.loads(result[6]) if result[6] else None,
+        'answers': result[5] if result[5] else [],
+        'validation_results': result[6] if result[6] else None,
         'quiz_title': result[7],
         'project_id': result[8]
     }
@@ -425,7 +425,7 @@ def get_quiz_attempts(quiz_id, user_id):
         attempts.append({
             'id': row[0],
             'score': float(row[1]),
-            'answers': json.loads(row[2]),
+            'answers': row[2],
             'submitted_at': row[3]
         })
 
@@ -469,9 +469,9 @@ def get_quiz_attempts_with_details(quiz_id, user_id, limit=50):
             'id': row[0],
             'score': row[1],
             'submitted_at': row[2],
-            'validation_results': json.loads(row[3]) if row[3] else None,
+            'validation_results': row[3] if row[3] else None,
             'revalidated_at': row[4],
-            'answers': json.loads(row[5]) if row[5] else [],
+            'answers': row[5] if row[5] else [],
             'has_detailed_feedback': row[6],
             'is_llm_validated': row[7]
         })
@@ -500,7 +500,7 @@ def get_quiz_attempts_history(quiz_id, user_id, limit=10):
             'id': row[0],
             'score': row[1],
             'submitted_at': row[2],
-            'validation_results': json.loads(row[3]) if row[3] else None,
+            'validation_results': row[3] if row[3] else None,
             'revalidated_at': row[4],
             'has_detailed_feedback': row[3] is not None
         })
