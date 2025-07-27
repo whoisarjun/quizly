@@ -96,7 +96,7 @@ def get_database_stats():
     cur.execute("""
                 SELECT COUNT(*)
                 FROM quiz_attempts
-                WHERE completed_at >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE submitted_at >= CURRENT_DATE - INTERVAL '7 days'
                 """)
     stats['recent_attempts'] = cur.fetchone()[0]
 
@@ -272,7 +272,7 @@ def backup_user_data(user_id, backup_path):
 
     # Get quiz attempts
     cur.execute("""
-                SELECT qa.quiz_id, qa.score, qa.answers, qa.completed_at
+                SELECT qa.quiz_id, qa.score, qa.answers, qa.submitted_at
                 FROM quiz_attempts qa
                          JOIN quizzes q ON qa.quiz_id = q.id
                          JOIN projects p ON q.project_id = p.id
@@ -285,7 +285,7 @@ def backup_user_data(user_id, backup_path):
             'quiz_id': row[0],
             'score': float(row[1]),
             'answers': json.loads(row[2]),
-            'completed_at': row[3].isoformat() if row[3] else None
+            'submitted_at': row[3].isoformat() if row[3] else None
         })
 
     cur.close()

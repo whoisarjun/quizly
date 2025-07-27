@@ -6,8 +6,6 @@ import os
 from datetime import datetime
 import json
 from functools import wraps
-
-# Import your database modules
 from database import db_init, db_utils, files_db, projects_db, quizzes_db, users_db
 from file_manager import text_extractor
 from llm import chatbot
@@ -22,6 +20,8 @@ CORS(app)  # Enable CORS for frontend
 # Initialize database and password hasher
 db_init.init_all_tables()
 ph = PasswordHasher()
+chatbot.set_model('gpt-4.1-nano')
+answer_validator = chatbot.AnswerValidator()
 
 
 # ==============================
@@ -350,6 +350,39 @@ def upload_files(project_id):
     except Exception as e:
         return handle_error(e, "Failed to upload files")
 
+
+@app.route('/api/files/<int:file_id>', methods=['DELETE'])
+@require_auth
+def delete_file(file_id):
+    try:
+        user_id = get_current_user_id()
+
+        # Delete from database (this also checks user permission)
+        success, result = files_db.delete_file(file_id, user_id)
+
+        if not success:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': result}}), 404
+
+        # result is the file_path, now delete the actual file from disk
+        file_path = result
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"✅ Deleted file: {file_path}")
+            else:
+                print(f"⚠️ File not found: {file_path}")
+        except Exception as file_error:
+            print(f"⚠️ Could not delete file {file_path}: {file_error}")
+            # Don't fail the API call if physical file deletion fails
+
+        return jsonify({
+            'message': 'File deleted successfully',
+            'file_id': file_id
+        })
+
+    except Exception as e:
+        return handle_error(e, "Failed to delete file")
+
 # ==============================
 # QUIZ GENERATION ENDPOINT (Your original functionality)
 # ==============================
@@ -465,6 +498,187 @@ def get_quiz(quiz_id):
     except Exception as e:
         return handle_error(e, "Failed to get quiz")
 
+@app.route('/api/quiz-attempts/<int:attempt_id>', methods=['GET'])
+@require_auth
+def get_quiz_attempt_details(attempt_id):
+    """Get detailed information about a specific quiz attempt"""
+    try:
+        user_id = get_current_user_id()
+
+        attempt = quizzes_db.get_quiz_attempt(attempt_id, user_id)
+        if not attempt:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz attempt not found'}}), 404
+
+        return jsonify(attempt)
+
+    except Exception as e:
+        return handle_error(e, "Failed to get quiz attempt details")
+
+@app.route('/api/quizzes/<int:quiz_id>/analytics', methods=['GET'])
+@require_auth
+def get_quiz_analytics_api(quiz_id):
+    """Get comprehensive analytics for a specific quiz"""
+    try:
+        user_id = get_current_user_id()
+
+        # Verify user has access to this quiz
+        quiz = quizzes_db.get_quiz_with_questions(quiz_id, user_id)
+        if not quiz:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
+
+        # Get quiz attempt analytics
+        analytics = quizzes_db.get_quiz_attempt_analytics(quiz_id, user_id)
+
+        if not analytics:
+            return jsonify({
+                'total_attempts': 0,
+                'avg_score': 0,
+                'best_score': 0,
+                'worst_score': 0,
+                'improvement': 0,
+                'improvement_trend': 0,
+                'consistency_score': 100,
+                'recent_scores': [],
+                'detailed_attempts': 0,
+                'message': 'No attempts yet'
+            })
+
+        return jsonify(analytics)
+
+    except Exception as e:
+        return handle_error(e, "Failed to get quiz analytics")
+
+@app.route('/api/projects/<int:project_id>/quiz-attempts', methods=['GET'])
+@require_auth
+def get_project_quiz_attempts(project_id):
+    """Get all quiz attempts for a project"""
+    try:
+        user_id = get_current_user_id()
+
+        if not db_utils.verify_project_ownership(project_id, user_id):
+            return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}}), 403
+
+        # Get all quizzes for this project
+        project_quizzes = quizzes_db.get_project_quizzes(project_id)
+
+        all_attempts = []
+        for quiz in project_quizzes:
+            attempts = quizzes_db.get_quiz_attempts_history(quiz['id'], user_id)
+            for attempt in attempts:
+                attempt['quiz_title'] = quiz['title']
+                attempt['quiz_id'] = quiz['id']
+            all_attempts.extend(attempts)
+
+        # Sort by submission date (most recent first)
+        all_attempts.sort(key=lambda x: x['submitted_at'], reverse=True)
+
+        return jsonify({
+            'attempts': all_attempts,
+            'total_count': len(all_attempts)
+        })
+
+    except Exception as e:
+        return handle_error(e, "Failed to get project quiz attempts")
+
+
+@app.route('/api/projects/<int:project_id>/analytics', methods=['GET'])
+@require_auth
+def get_project_analytics_api(project_id):
+    """Get analytics for all quizzes in a project"""
+    try:
+        user_id = get_current_user_id()
+
+        if not db_utils.verify_project_ownership(project_id, user_id):
+            return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}}), 403
+
+        # Get all quizzes for this project
+        project_quizzes = quizzes_db.get_project_quizzes(project_id)
+
+        analytics_data = {
+            'project_id': project_id,
+            'total_quizzes': len(project_quizzes),
+            'quiz_analytics': []
+        }
+
+        # Get analytics for each quiz
+        for quiz in project_quizzes:
+            quiz_analytics = quizzes_db.get_quiz_attempt_analytics(quiz['id'], user_id)
+            if quiz_analytics:
+                quiz_analytics['quiz_title'] = quiz['title']
+                quiz_analytics['quiz_difficulty'] = quiz['difficulty']
+                analytics_data['quiz_analytics'].append(quiz_analytics)
+
+        # Calculate project-wide statistics
+        if analytics_data['quiz_analytics']:
+            total_attempts = sum(qa['total_attempts'] for qa in analytics_data['quiz_analytics'])
+            avg_scores = [qa['avg_score'] for qa in analytics_data['quiz_analytics'] if qa['avg_score'] > 0]
+            best_scores = [qa['best_score'] for qa in analytics_data['quiz_analytics'] if qa['best_score'] > 0]
+
+            analytics_data.update({
+                'total_attempts': total_attempts,
+                'overall_avg_score': sum(avg_scores) / len(avg_scores) if avg_scores else 0,
+                'overall_best_score': max(best_scores) if best_scores else 0,
+                'active_quizzes': len([qa for qa in analytics_data['quiz_analytics'] if qa['total_attempts'] > 0])
+            })
+        else:
+            analytics_data.update({
+                'total_attempts': 0,
+                'overall_avg_score': 0,
+                'overall_best_score': 0,
+                'active_quizzes': 0
+            })
+
+        return jsonify(analytics_data)
+
+    except Exception as e:
+        return handle_error(e, "Failed to get project analytics")(
+            {'error': {'code': 'NOT_FOUND', 'message': 'Quiz attempt not found'}}), 404
+
+        # Get the quiz details
+        quiz = quizzes_db.get_quiz_with_questions(attempt['quiz_id'], user_id)
+        if not quiz:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
+
+        # Create comprehensive export data
+        export_data = {
+            'attempt_info': {
+                'id': attempt['id'],
+                'submitted_at': attempt['submitted_at'].isoformat() if attempt['submitted_at'] else None,
+                'score': attempt['score'],
+                'quiz_title': attempt['quiz_title'],
+                'revalidated_at': attempt.get('revalidated_at')
+            },
+            'quiz_info': {
+                'title': quiz['title'],
+                'difficulty': quiz['difficulty'],
+                'question_count': quiz['question_count']
+            },
+            'answers': attempt['answers'],
+            'validation_results': attempt['validation_results'],
+            'detailed_feedback': []
+        }
+
+        # Add detailed feedback if available
+        if attempt['validation_results'] and attempt['validation_results'].get('validation_results'):
+            for result in attempt['validation_results']['validation_results']:
+                question = next((q for q in quiz['questions'] if q['id'] == result['question_id']), None)
+                if question:
+                    feedback_item = {
+                        'question_id': result['question_id'],
+                        'question_text': question['text'],
+                        'question_type': question['type'],
+                        'student_answer': result.get('student_answer', ''),
+                        'score_percentage': result.get('score_percentage', 0),
+                        'is_correct': result.get('is_correct', False),
+                        'feedback': result.get('feedback', ''),
+                        'partial_credit_details': result.get('partial_credit_details', '')
+                    }
+                    export_data['detailed_feedback'].append(feedback_item)
+
+        return jsonify(export_data)
+
+    except Exception as e:
+        return handle_error(e, "Failed to export quiz attempt")
 
 @app.route('/api/quizzes/<int:quiz_id>/submit', methods=['POST'])
 @require_auth
@@ -474,52 +688,322 @@ def submit_quiz(quiz_id):
         data = request.get_json()
 
         answers = data.get('answers', [])
+        use_llm_validation = data.get('use_llm_validation', True)  # Allow override
 
-        # Get quiz to calculate score
+        # Get quiz with questions
         quiz = quizzes_db.get_quiz_with_questions(quiz_id, user_id)
         if not quiz:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
 
-        # Calculate score
+        # Get project files for LLM validation
+        project_files = files_db.get_project_files(quiz['project_id'])
+
+        validation_results = None
+
+        if use_llm_validation and project_files:
+            # Use LLM validation
+            print("🤖 Using LLM-based answer validation...")
+
+            # Format answers for validation
+            formatted_answers = []
+            for answer in answers:
+                question = next((q for q in quiz['questions'] if q['id'] == answer['question_id']), None)
+                if question:
+                    formatted_answer = {
+                        'question_id': answer['question_id'],
+                        'selected_option': answer.get('selected_option'),
+                        'answer_text': answer.get('answer_text', ''),
+                        'fill_in_answers': answer.get('fill_in_answers', [])
+                    }
+                    formatted_answers.append(formatted_answer)
+
+            # Get LLM validation
+            validation_results = answer_validator.validate_quiz_answers(
+                project_files=project_files,
+                questions=quiz['questions'],
+                student_answers=formatted_answers
+            )
+
+            if not validation_results.get('error'):
+                # Use LLM results
+                score = validation_results['overall_score']
+                correct_answers = validation_results['correct_answers']
+                results = validation_results['validation_results']
+
+                # Save attempt with detailed results
+                attempt_id = quizzes_db.submit_quiz_attempt_with_validation(
+                    quiz_id, user_id, answers, score, validation_results
+                )
+
+                return jsonify({
+                    'score': score,
+                    'correct_answers': correct_answers,
+                    'total_questions': len(quiz['questions']),
+                    'time_taken': data.get('time_taken', 0),
+                    'results': results,
+                    'validation_method': 'llm',
+                    'attempt_id': attempt_id,
+                    'detailed_feedback': True
+                })
+
         correct_answers = 0
         total_questions = len(quiz['questions'])
         results = []
 
         for i, question in enumerate(quiz['questions']):
             user_answer = None
+            user_answer_text = ""
+
+            # Find the user's answer for this question
             for answer in answers:
                 if answer['question_id'] == question['id']:
-                    user_answer = answer['selected_option']
+                    user_answer = answer.get('selected_option')
+                    user_answer_text = answer.get('answer_text', '')
+                    user_fill_answers = answer.get('fill_in_answers', [])
                     break
 
-            is_correct = user_answer == question.get('correct_answer', 0)
-            if is_correct:
+            is_correct = False
+            score_percentage = 0
+            feedback = ""
+
+            # Validate based on question type
+            if question['type'] in ['multiple-choice', 'true-false']:
+                expected_answer = question.get('correct_answer', 0)
+                is_correct = (user_answer == expected_answer)
+                score_percentage = 100 if is_correct else 0
+
+                if is_correct:
+                    feedback = "Correct answer!"
+                else:
+                    correct_option = "True" if expected_answer == 0 else "False" if question[
+                                                                                        'type'] == 'true-false' else f"Option {expected_answer}"
+                    feedback = f"Incorrect. The correct answer is: {correct_option}"
+
+            elif question['type'] == 'short-answer':
+                # For short answers without LLM, give partial credit if answered
+                if user_answer_text.strip():
+                    score_percentage = 75  # Give partial credit
+                    feedback = "Answer provided. Full validation requires manual review."
+                else:
+                    feedback = "No answer provided."
+
+            elif question['type'] == 'fill-in-blank':
+                # For fill-in-blank without LLM, give partial credit if any blanks filled
+                if user_fill_answers and any(ans.strip() for ans in user_fill_answers):
+                    score_percentage = 75  # Give partial credit
+                    feedback = "Answer provided. Full validation requires manual review."
+                else:
+                    feedback = "No answer provided."
+
+            if score_percentage >= 100:
                 correct_answers += 1
+            elif score_percentage > 0:
+                correct_answers += (score_percentage / 100)
 
             results.append({
                 'question_id': question['id'],
                 'correct': is_correct,
+                'score_percentage': score_percentage,
                 'selected_option': user_answer,
+                'answer_text': user_answer_text,
                 'correct_option': question.get('correct_answer', 0),
-                'explanation': question.get('explanation', '')
+                'explanation': question.get('explanation', ''),
+                'feedback': feedback
             })
 
+        # Calculate overall score
         score = round((correct_answers / total_questions) * 100) if total_questions > 0 else 0
 
         # Save attempt
-        quizzes_db.submit_quiz_attempt(quiz_id, user_id, answers, score)
+        attempt_id = quizzes_db.submit_quiz_attempt(quiz_id, user_id, answers, score)
 
         return jsonify({
             'score': score,
-            'correct_answers': correct_answers,
+            'correct_answers': int(correct_answers),
             'total_questions': total_questions,
-            'time_taken': 0,  # You'd track this in a real app
-            'results': results
+            'time_taken': data.get('time_taken', 0),
+            'results': results,
+            'validation_method': 'traditional',
+            'attempt_id': attempt_id,
+            'detailed_feedback': validation_results is None
         })
 
     except Exception as e:
         return handle_error(e, "Failed to submit quiz")
 
+
+@app.route('/api/quizzes/<int:quiz_id>/attempts', methods=['GET'])
+@require_auth
+def get_quiz_attempts_api(quiz_id):
+    """Get all attempts for a specific quiz by the current user"""
+    try:
+        user_id = get_current_user_id()
+
+        # Verify user has access to this quiz
+        quiz = quizzes_db.get_quiz_with_questions(quiz_id, user_id)
+        if not quiz:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
+
+        # Get attempts history
+        attempts = quizzes_db.get_quiz_attempts_history(quiz_id, user_id, limit=50)
+
+        return jsonify({
+            'attempts': attempts,
+            'quiz_id': quiz_id,
+            'quiz_title': quiz['title'],
+            'total_count': len(attempts)
+        })
+
+    except Exception as e:
+        return handle_error(e, "Failed to get quiz attempts")
+
+
+@app.route('/api/quiz-attempts/<int:attempt_id>/revalidate', methods=['POST'])
+@require_auth
+def revalidate_quiz_attempt(attempt_id):
+    """Re-validate a quiz attempt using LLM for enhanced feedback"""
+    try:
+        user_id = get_current_user_id()
+
+        # Get the attempt
+        attempt = quizzes_db.get_quiz_attempt(attempt_id, user_id)
+        if not attempt:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz attempt not found'}}), 404
+
+        # Get the quiz with questions
+        quiz = quizzes_db.get_quiz_with_questions(attempt['quiz_id'], user_id)
+        if not quiz:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
+
+        # Get project files for LLM validation
+        project_files = files_db.get_project_files(attempt['project_id'])
+
+        if not project_files:
+            return jsonify({'error': {'code': 'NO_FILES', 'message': 'No project files available for validation'}}), 400
+
+        print(f"🤖 Re-validating attempt {attempt_id} with LLM...")
+
+        # Format answers for validation
+        formatted_answers = []
+        for answer in attempt['answers']:
+            question = next((q for q in quiz['questions'] if q['id'] == answer['question_id']), None)
+            if question:
+                formatted_answer = {
+                    'question_id': answer['question_id'],
+                    'selected_option': answer.get('selected_option'),
+                    'answer_text': answer.get('answer_text', ''),
+                    'fill_in_answers': answer.get('fill_in_answers', [])
+                }
+                formatted_answers.append(formatted_answer)
+
+        # Get LLM validation
+        validation_results = answer_validator.validate_quiz_answers(
+            project_files=project_files,
+            questions=quiz['questions'],
+            student_answers=formatted_answers
+        )
+
+        if validation_results.get('error'):
+            return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': validation_results['error']}}), 500
+
+        # Update the attempt with new results
+        new_score = validation_results['overall_score']
+        old_score = attempt['score']
+
+        # Update in database
+        updated = quizzes_db.update_quiz_attempt_score(attempt_id, new_score, validation_results)
+
+        if not updated:
+            return jsonify({'error': {'code': 'UPDATE_FAILED', 'message': 'Failed to update attempt'}}), 500
+
+        print(f"✅ Re-validation complete - Score changed from {old_score}% to {new_score}%")
+
+        return jsonify({
+            'attempt_id': attempt_id,
+            'old_score': old_score,
+            'new_score': new_score,
+            'score_difference': new_score - old_score,
+            'validation_results': validation_results,
+            'validation_method': 'llm',
+            'revalidated_at': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        return handle_error(e, "Failed to re-validate quiz attempt")
+
+@app.route('/api/quiz-attempts/<int:attempt_id>/export', methods=['GET'])
+@require_auth
+def export_quiz_attempt(attempt_id):
+    """Export detailed quiz attempt results"""
+    try:
+        user_id = get_current_user_id()
+
+        # Get the attempt with all details
+        attempt = quizzes_db.get_quiz_attempt(attempt_id, user_id)
+        if not attempt:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz attempt not found'}}), 404
+
+        # Get the quiz details
+        quiz = quizzes_db.get_quiz_with_questions(attempt['quiz_id'], user_id)
+        if not quiz:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
+
+        # Create comprehensive export data
+        export_data = {
+            'attempt_info': {
+                'id': attempt['id'],
+                'submitted_at': attempt['submitted_at'].isoformat() if attempt['submitted_at'] else None,
+                'score': attempt['score'],
+                'quiz_title': attempt['quiz_title'],
+                'revalidated_at': attempt.get('revalidated_at')
+            },
+            'quiz_info': {
+                'title': quiz['title'],
+                'difficulty': quiz['difficulty'],
+                'question_count': quiz['question_count']
+            },
+            'answers': attempt['answers'],
+            'validation_results': attempt['validation_results'],
+            'detailed_feedback': []
+        }
+
+        # Add detailed feedback if available
+        if attempt['validation_results'] and attempt['validation_results'].get('validation_results'):
+            for result in attempt['validation_results']['validation_results']:
+                question = next((q for q in quiz['questions'] if q['id'] == result['question_id']), None)
+                if question:
+                    feedback_item = {
+                        'question_id': result['question_id'],
+                        'question_text': question['text'],
+                        'question_type': question['type'],
+                        'student_answer': result.get('student_answer', ''),
+                        'score_percentage': result.get('score_percentage', 0),
+                        'is_correct': result.get('is_correct', False),
+                        'feedback': result.get('feedback', ''),
+                        'partial_credit_details': result.get('partial_credit_details', '')
+                    }
+                    export_data['detailed_feedback'].append(feedback_item)
+
+        return jsonify(export_data)
+
+    except Exception as e:
+        return handle_error(e, "Failed to export quiz attempt")
+
+
+@app.route('/api/user/quiz-statistics', methods=['GET'])
+@require_auth
+def get_user_quiz_statistics_api():
+    """Get comprehensive quiz statistics for the current user"""
+    try:
+        user_id = get_current_user_id()
+        days = request.args.get('days', 30, type=int)
+
+        statistics = quizzes_db.get_user_quiz_statistics(user_id, days)
+
+        return jsonify(statistics)
+
+    except Exception as e:
+        return handle_error(e, "Failed to get user quiz statistics")
 
 # ==============================
 # UTILITY FUNCTIONS

@@ -53,12 +53,14 @@ def create_quiz_tables():
     cur.execute("""
                 CREATE TABLE IF NOT EXISTS quiz_attempts
                 (
-                    id           SERIAL PRIMARY KEY,
-                    quiz_id      INTEGER       NOT NULL,
-                    user_id      INTEGER       NOT NULL,
-                    score        DECIMAL(5, 2) NOT NULL,
-                    answers      JSON          NOT NULL,
-                    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    id                 SERIAL PRIMARY KEY,
+                    quiz_id            INTEGER NOT NULL,
+                    user_id            INTEGER NOT NULL,
+                    score              INTEGER NOT NULL,
+                    submitted_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    answers            JSONB,
+                    validation_results JSONB,
+                    revalidated_at     TIMESTAMP,
                     FOREIGN KEY (quiz_id) REFERENCES quizzes (id) ON DELETE CASCADE,
                     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                 )
@@ -234,11 +236,11 @@ def submit_quiz_attempt(quiz_id, user_id, answers, score):
     cur.execute("""
                 INSERT INTO quiz_attempts (quiz_id, user_id, score, answers)
                 VALUES (%s, %s, %s, %s)
-                RETURNING id, completed_at
+                RETURNING id, submitted_at
                 """, (quiz_id, user_id, score, json.dumps(answers)))
 
     result = cur.fetchone()
-    attempt_id, completed_at = result
+    attempt_id, submitted_at = result
 
     conn.commit()
     cur.close()
@@ -250,7 +252,157 @@ def submit_quiz_attempt(quiz_id, user_id, answers, score):
         'quiz_id': quiz_id,
         'user_id': user_id,
         'score': score,
-        'completed_at': completed_at
+        'submitted_at': submitted_at
+    }
+
+def submit_quiz_attempt_with_validation(quiz_id, user_id, answers, score, validation_results):
+    """
+    Submit a quiz attempt with detailed LLM validation results
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        # Insert the basic attempt
+        cur.execute("""
+                    INSERT INTO quiz_attempts (quiz_id, user_id, score, submitted_at, answers, validation_results)
+                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s, %s)
+                    RETURNING id
+                    """, (quiz_id, user_id, score, json.dumps(answers), json.dumps(validation_results)))
+
+        attempt_id = cur.fetchone()[0]
+
+        conn.commit()
+        print(f"✅ Quiz attempt {attempt_id} saved with LLM validation")
+        return attempt_id
+
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ Error saving quiz attempt: {e}")
+        raise e
+    finally:
+        cur.close()
+        conn.close()
+
+def get_question_performance_analytics(quiz_id, user_id):
+    """Get performance analytics at the question level"""
+    conn = get_conn()
+    cur = conn.cursor()
+
+    # Get question performance data
+    cur.execute("""
+                SELECT qq.id        as question_id,
+                       qq.question_text,
+                       qq.question_type,
+                       COUNT(qa.id) as times_attempted,
+                       AVG(
+                               CASE
+                                   WHEN qa.validation_results IS NOT NULL THEN
+                                       CAST(qa.validation_results -> 'validation_results' -> 0 ->> 'score_percentage' AS FLOAT)
+                                   ELSE
+                                       CASE WHEN qa.score >= 70 THEN 100 ELSE 0 END
+                                   END
+                       )            as avg_score
+                FROM quiz_questions qq
+                         JOIN quizzes q ON qq.quiz_id = q.id
+                         JOIN projects p ON q.project_id = p.id
+                         LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id AND qa.user_id = %s
+                WHERE qq.quiz_id = %s
+                  AND p.user_id = %s
+                GROUP BY qq.id, qq.question_text, qq.question_type
+                ORDER BY qq.question_order
+                """, (user_id, quiz_id, user_id))
+
+    question_analytics = []
+    for row in cur.fetchall():
+        question_analytics.append({
+            'question_id': row[0],
+            'question_text': row[1][:100] + ('...' if len(row[1]) > 100 else ''),  # Truncate for display
+            'question_type': row[2],
+            'times_attempted': row[3] or 0,
+            'avg_score': round(float(row[4]), 2) if row[4] else 0,
+            'difficulty_rating': 'Easy' if (row[4] or 0) >= 80 else 'Medium' if (row[4] or 0) >= 60 else 'Hard'
+        })
+
+    cur.close()
+    conn.close()
+    return question_analytics
+
+def get_quiz_attempt(attempt_id, user_id):
+    """Get a specific quiz attempt with all details"""
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+                SELECT qa.id,
+                       qa.quiz_id,
+                       qa.user_id,
+                       qa.score,
+                       qa.submitted_at,
+                       qa.answers,
+                       qa.validation_results,
+                       q.title,
+                       q.project_id
+                FROM quiz_attempts qa
+                         JOIN quizzes q ON qa.quiz_id = q.id
+                WHERE qa.id = %s
+                  AND qa.user_id = %s
+                """, (attempt_id, user_id))
+
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if not result:
+        return None
+
+    return {
+        'id': result[0],
+        'quiz_id': result[1],
+        'user_id': result[2],
+        'score': result[3],
+        'submitted_at': result[4],
+        'answers': json.loads(result[5]) if result[5] else [],
+        'validation_results': json.loads(result[6]) if result[6] else None,
+        'quiz_title': result[7],
+        'project_id': result[8]
+    }
+
+def get_quiz_attempt_analytics(quiz_id, user_id):
+    """Get analytics for a specific quiz's attempts by a user"""
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+                SELECT COUNT(*)                                                   as total_attempts,
+                       AVG(score)                                                 as avg_score,
+                       MAX(score)                                                 as best_score,
+                       MIN(score)                                                 as worst_score,
+                       MAX(submitted_at)                                          as last_attempt,
+                       COUNT(CASE WHEN validation_results IS NOT NULL THEN 1 END) as detailed_attempts
+                FROM quiz_attempts qa
+                         JOIN quizzes q ON qa.quiz_id = q.id
+                         JOIN projects p ON q.project_id = p.id
+                WHERE qa.quiz_id = %s
+                  AND qa.user_id = %s
+                  AND p.user_id = %s
+                """, (quiz_id, user_id, user_id))
+
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if not result or result[0] == 0:
+        return None
+
+    return {
+        'total_attempts': result[0],
+        'avg_score': round(float(result[1]), 2) if result[1] else 0,
+        'best_score': round(float(result[2]), 2) if result[2] else 0,
+        'worst_score': round(float(result[3]), 2) if result[3] else 0,
+        'last_attempt': result[4],
+        'detailed_attempts': result[5],
+        'improvement': round(float(result[2]) - float(result[3]), 2) if result[2] and result[3] else 0
     }
 
 def get_quiz_attempts(quiz_id, user_id):
@@ -258,14 +410,14 @@ def get_quiz_attempts(quiz_id, user_id):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-                SELECT qa.id, qa.score, qa.answers, qa.completed_at
+                SELECT qa.id, qa.score, qa.answers, qa.submitted_at
                 FROM quiz_attempts qa
                          JOIN quizzes q ON qa.quiz_id = q.id
                          JOIN projects p ON q.project_id = p.id
                 WHERE qa.quiz_id = %s
                   AND qa.user_id = %s
                   AND p.user_id = %s
-                ORDER BY qa.completed_at DESC
+                ORDER BY qa.submitted_at DESC
                 """, (quiz_id, user_id, user_id))
 
     attempts = []
@@ -274,12 +426,108 @@ def get_quiz_attempts(quiz_id, user_id):
             'id': row[0],
             'score': float(row[1]),
             'answers': json.loads(row[2]),
-            'completed_at': row[3]
+            'submitted_at': row[3]
         })
 
     cur.close()
     conn.close()
     return attempts
+
+def get_quiz_attempts_with_details(quiz_id, user_id, limit=50):
+    """Get quiz attempts with enhanced details including validation info"""
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+                SELECT qa.id,
+                       qa.score,
+                       qa.submitted_at,
+                       qa.validation_results,
+                       qa.revalidated_at,
+                       qa.answers,
+                       CASE
+                           WHEN qa.validation_results IS NOT NULL THEN true
+                           ELSE false
+                           END as has_detailed_feedback,
+                       CASE
+                           WHEN qa.validation_results ->> 'validation_method' = 'llm' THEN true
+                           ELSE false
+                           END as is_llm_validated
+                FROM quiz_attempts qa
+                         JOIN quizzes q ON qa.quiz_id = q.id
+                         JOIN projects p ON q.project_id = p.id
+                WHERE qa.quiz_id = %s
+                  AND qa.user_id = %s
+                  AND p.user_id = %s
+                ORDER BY qa.submitted_at DESC
+                LIMIT %s
+                """, (quiz_id, user_id, user_id, limit))
+
+    attempts = []
+    for row in cur.fetchall():
+        attempts.append({
+            'id': row[0],
+            'score': row[1],
+            'submitted_at': row[2],
+            'validation_results': json.loads(row[3]) if row[3] else None,
+            'revalidated_at': row[4],
+            'answers': json.loads(row[5]) if row[5] else [],
+            'has_detailed_feedback': row[6],
+            'is_llm_validated': row[7]
+        })
+
+    cur.close()
+    conn.close()
+    return attempts
+
+def get_quiz_attempts_history(quiz_id, user_id, limit=10):
+    """Get quiz attempt history for a specific user and quiz"""
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+                SELECT id, score, submitted_at, validation_results, revalidated_at
+                FROM quiz_attempts
+                WHERE quiz_id = %s
+                  AND user_id = %s
+                ORDER BY submitted_at DESC
+                LIMIT %s
+                """, (quiz_id, user_id, limit))
+
+    attempts = []
+    for row in cur.fetchall():
+        attempts.append({
+            'id': row[0],
+            'score': row[1],
+            'submitted_at': row[2],
+            'validation_results': json.loads(row[3]) if row[3] else None,
+            'revalidated_at': row[4],
+            'has_detailed_feedback': row[3] is not None
+        })
+
+    cur.close()
+    conn.close()
+    return attempts
+
+def update_quiz_attempt_score(attempt_id, new_score, validation_results):
+    """Update a quiz attempt with new score and validation results"""
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+                UPDATE quiz_attempts
+                SET score              = %s,
+                    validation_results = %s,
+                    revalidated_at     = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """, (new_score, json.dumps(validation_results), attempt_id))
+
+    updated = cur.rowcount > 0
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return updated
 
 def delete_quiz(quiz_id, user_id):
     """Delete a quiz (with user permission check)"""
@@ -326,7 +574,7 @@ def get_user_quiz_analytics(user_id):
                        COALESCE(AVG(qa.score), 0)                                                      as avg_score,
                        COALESCE(MAX(qa.score), 0)                                                      as best_score,
                        COUNT(CASE WHEN qa.score >= 70 THEN 1 END)                                      as passing_attempts,
-                       COUNT(CASE WHEN qa.completed_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as recent_attempts
+                       COUNT(CASE WHEN qa.submitted_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as recent_attempts
                 FROM quizzes q
                          JOIN projects p ON q.project_id = p.id
                          LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id AND qa.user_id = %s
@@ -349,18 +597,107 @@ def get_user_quiz_analytics(user_id):
         'recent_attempts': result[5]
     }
 
+def get_user_quiz_statistics(user_id, days=30):
+    """Get comprehensive quiz statistics for a user"""
+    conn = get_conn()
+    cur = conn.cursor()
+
+    # Get overall stats
+    cur.execute("""
+                SELECT COUNT(DISTINCT q.id)                                                             as total_quizzes,
+                       COUNT(qa.id)                                                                     as total_attempts,
+                       AVG(qa.score)                                                                    as avg_score,
+                       MAX(qa.score)                                                                    as best_score,
+                       COUNT(CASE WHEN qa.score >= 70 THEN 1 END)                                       as passing_attempts,
+                       COUNT(CASE WHEN qa.submitted_at >= CURRENT_DATE - INTERVAL '%s days' THEN 1 END) as recent_attempts,
+                       COUNT(CASE WHEN qa.validation_results IS NOT NULL THEN 1 END)                    as llm_validated_attempts
+                FROM quizzes q
+                         JOIN projects p ON q.project_id = p.id
+                         LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id AND qa.user_id = %s
+                WHERE p.user_id = %s
+                """, (days, user_id, user_id))
+
+    stats = cur.fetchone()
+
+    # Get performance by difficulty
+    cur.execute("""
+                SELECT q.difficulty,
+                       COUNT(qa.id)  as attempts,
+                       AVG(qa.score) as avg_score,
+                       MAX(qa.score) as best_score
+                FROM quizzes q
+                         JOIN projects p ON q.project_id = p.id
+                         LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id AND qa.user_id = %s
+                WHERE p.user_id = %s
+                GROUP BY q.difficulty
+                ORDER BY CASE q.difficulty
+                             WHEN 'easy' THEN 1
+                             WHEN 'medium' THEN 2
+                             WHEN 'hard' THEN 3
+                             WHEN 'extreme' THEN 4
+                             ELSE 5
+                             END
+                """, (user_id, user_id))
+
+    difficulty_stats = []
+    for row in cur.fetchall():
+        difficulty_stats.append({
+            'difficulty': row[0],
+            'attempts': row[1] or 0,
+            'avg_score': round(float(row[2]), 2) if row[2] else 0,
+            'best_score': round(float(row[3]), 2) if row[3] else 0
+        })
+
+    # Get recent performance trend
+    cur.execute("""
+                SELECT DATE(qa.submitted_at) as date,
+                       AVG(qa.score)         as avg_score,
+                       COUNT(*)              as attempts
+                FROM quiz_attempts qa
+                         JOIN quizzes q ON qa.quiz_id = q.id
+                         JOIN projects p ON q.project_id = p.id
+                WHERE p.user_id = %s
+                  AND qa.submitted_at >= CURRENT_DATE - INTERVAL '%s days'
+                GROUP BY DATE (qa.submitted_at)
+                ORDER BY date DESC
+                LIMIT 10
+                """, (user_id, days))
+
+    performance_trend = []
+    for row in cur.fetchall():
+        performance_trend.append({
+            'date': row[0].isoformat(),
+            'avg_score': round(float(row[1]), 2),
+            'attempts': row[2]
+        })
+
+    cur.close()
+    conn.close()
+
+    return {
+        'total_quizzes': stats[0] or 0,
+        'total_attempts': stats[1] or 0,
+        'avg_score': round(float(stats[2]), 2) if stats[2] else 0,
+        'best_score': round(float(stats[3]), 2) if stats[3] else 0,
+        'passing_attempts': stats[4] or 0,
+        'recent_attempts': stats[5] or 0,
+        'llm_validated_attempts': stats[6] or 0,
+        'difficulty_breakdown': difficulty_stats,
+        'performance_trend': performance_trend
+    }
+
 def get_quiz_performance_over_time(user_id, days=30):
     """Get quiz performance over time"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-                SELECT DATE(qa.completed_at) as date, AVG(qa.score) as avg_score, COUNT(*) as attempts
+                SELECT DATE(qa.submitted_at) as date, AVG(qa.score) as avg_score, COUNT(*) as attempts
                 FROM quiz_attempts qa
                          JOIN quizzes q ON qa.quiz_id = q.id
                          JOIN projects p ON q.project_id = p.id
                 WHERE p.user_id = %s
-                  AND qa.completed_at >= CURRENT_DATE - INTERVAL '%s days'
-                GROUP BY DATE (qa.completed_at)
+                  AND qa.submitted_at >= CURRENT_DATE - INTERVAL '%s days'
+                GROUP BY DATE (qa.submitted_at)
                 ORDER BY date
                 """, (user_id, days))
 

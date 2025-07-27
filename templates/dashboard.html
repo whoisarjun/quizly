@@ -6,6 +6,8 @@
     <title>Dashboard - Quizper</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css">
 </head>
 <body>
     <div class="bg-grid"></div>
@@ -32,7 +34,7 @@
                                 <div class="user-avatar">
                                     <i class="fas fa-user"></i>
                                 </div>
-                                <span>John Doe</span>
+                                <span id="userDisplayName">Loading...</span>
                                 <i class="fas fa-chevron-down"></i>
                             </button>
                             <div class="user-dropdown" id="userDropdown">
@@ -53,7 +55,7 @@
             <!-- Welcome Section -->
             <section class="welcome-section">
                 <div class="welcome-content">
-                    <h1>Welcome back, John!</h1>
+                    <h1 id="welcomeMessage">Welcome back!</h1>
                     <p>Ready to create some amazing quizzes? Upload your notes and let AI do the magic.</p>
                 </div>
                 <button class="new-project-btn" id="newProjectBtn">

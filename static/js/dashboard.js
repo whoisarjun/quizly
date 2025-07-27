@@ -82,8 +82,9 @@ class Dashboard {
         try {
             this.showLoading('Loading dashboard...');
 
-            // Load projects and stats in parallel
-            const [projectsData, statsData] = await Promise.all([
+            // Load user profile, projects and stats in parallel
+            const [userProfile, projectsData, statsData] = await Promise.all([
+                this.loadUserProfile(),
                 this.apiCall('/projects'),
                 this.apiCall('/dashboard/stats')
             ]);
@@ -96,6 +97,36 @@ class Dashboard {
         } catch (error) {
             this.hideLoading();
             this.showNotification('Failed to load dashboard data', 'error');
+        }
+    }
+
+    async loadUserProfile() {
+        try {
+            const userProfile = await this.apiCall('/user/profile');
+
+            // Update the display name in header
+            const userDisplayName = document.getElementById('userDisplayName');
+            if (userDisplayName) {
+                userDisplayName.textContent = `${userProfile.first_name} ${userProfile.last_name}`;
+            }
+
+            // Update the welcome message
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            if (welcomeMessage) {
+                welcomeMessage.textContent = `Welcome back, ${userProfile.first_name}!`;
+            }
+
+        } catch (error) {
+            // Fallback if profile loading fails
+            const userDisplayName = document.getElementById('userDisplayName');
+            if (userDisplayName) {
+                userDisplayName.textContent = 'User';
+            }
+
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            if (welcomeMessage) {
+                welcomeMessage.textContent = 'Welcome back!';
+            }
         }
     }
 
@@ -407,27 +438,33 @@ class Dashboard {
     }
 
     async takeQuiz(quizId) {
-        try {
-            this.showLoading('Loading quiz...');
+    try {
+        this.showLoading('Loading quiz...');
 
-            const quiz = await this.apiCall(`/quizzes/${quizId}`);
+        // IMPORTANT: Reset quiz state completely before loading new quiz
+        this.resetQuizState();
 
-            this.currentQuiz = quiz;
-            this.currentQuestionIndex = 0;
-            this.userAnswers = new Array(quiz.questions.length).fill(null);
+        const quiz = await this.apiCall(`/quizzes/${quizId}`);
 
-            // Show quiz modal
-            document.getElementById('quizTakingModal').classList.add('active');
-            document.getElementById('quizTakingTitle').textContent = quiz.title;
+        this.currentQuiz = quiz;
+        this.currentQuestionIndex = 0;
+        this.userAnswers = new Array(quiz.questions.length).fill(null);
 
-            this.renderCurrentQuestion();
-            this.updateQuizProgress();
-            this.hideLoading();
+        // Reset the modal body to ensure clean state
+        this.resetQuizModalBody();
 
-        } catch (error) {
-            this.hideLoading();
-        }
+        // Show quiz modal
+        document.getElementById('quizTakingModal').classList.add('active');
+        document.getElementById('quizTakingTitle').textContent = quiz.title;
+
+        this.renderCurrentQuestion();
+        this.updateQuizProgress();
+        this.hideLoading();
+
+    } catch (error) {
+        this.hideLoading();
     }
+}
 
     async submitQuiz() {
         if (!this.currentQuiz) return;
@@ -521,6 +558,39 @@ class Dashboard {
 
         } catch (error) {
             this.hideLoading();
+        }
+    }
+
+    resetQuizState() {
+        this.currentQuiz = null;
+        this.currentQuestionIndex = 0;
+        this.userAnswers = [];
+    }
+
+    resetQuizModalBody() {
+        const modal = document.getElementById('quizTakingModal');
+        const body = modal.querySelector('.modal-body');
+
+        if (body) {
+            body.innerHTML = `
+                <div class="quiz-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <span class="progress-text" id="questionProgress">0 of 0</span>
+                </div>
+                <div class="quiz-container" id="quizContainer">
+                    <!-- Quiz questions will be loaded here -->
+                </div>
+                <div class="quiz-navigation">
+                    <button class="btn-secondary" id="prevQuestion" disabled>Previous</button>
+                    <button class="btn-primary" id="nextQuestion">Next</button>
+                    <button class="btn-primary" id="submitQuiz" style="display: none;">Submit Quiz</button>
+                </div>
+            `;
+
+            // Re-bind events after resetting HTML
+            this.bindQuizModalEvents();
         }
     }
 
@@ -645,6 +715,8 @@ class Dashboard {
         // Quiz modal events
         this.bindQuizModalEvents();
 
+        this.bindModalOverlayEvents();
+
         // Close modals on overlay click
         document.querySelectorAll('.modal-overlay').forEach(overlay => {
             overlay.addEventListener('click', (e) => {
@@ -743,36 +815,67 @@ class Dashboard {
     }
 
     bindQuizModalEvents() {
-        const closeQuizModal = document.getElementById('closeQuizModal');
-        const quizTakingModal = document.getElementById('quizTakingModal');
-        const prevQuestion = document.getElementById('prevQuestion');
-        const nextQuestion = document.getElementById('nextQuestion');
-        const submitQuiz = document.getElementById('submitQuiz');
+    const closeQuizModal = document.getElementById('closeQuizModal');
+    const quizTakingModal = document.getElementById('quizTakingModal');
+    const prevQuestion = document.getElementById('prevQuestion');
+    const nextQuestion = document.getElementById('nextQuestion');
+    const submitQuiz = document.getElementById('submitQuiz');
 
-        if (closeQuizModal && quizTakingModal) {
-            closeQuizModal.addEventListener('click', () => {
-                quizTakingModal.classList.remove('active');
-                this.resetQuiz();
-            });
-        }
+    // Remove existing event listeners to prevent duplicates
+    if (closeQuizModal) {
+        // Clone node to remove all event listeners
+        const newCloseBtn = closeQuizModal.cloneNode(true);
+        closeQuizModal.parentNode.replaceChild(newCloseBtn, closeQuizModal);
 
-        if (prevQuestion) {
-            prevQuestion.addEventListener('click', () => {
-                this.previousQuestion();
-            });
-        }
+        newCloseBtn.addEventListener('click', () => {
+            this.closeQuizModal();
+        });
+    }
 
-        if (nextQuestion) {
-            nextQuestion.addEventListener('click', () => {
-                this.nextQuestion();
-            });
-        }
+    if (prevQuestion) {
+        const newPrevBtn = prevQuestion.cloneNode(true);
+        prevQuestion.parentNode.replaceChild(newPrevBtn, prevQuestion);
 
-        if (submitQuiz) {
-            submitQuiz.addEventListener('click', () => {
-                this.submitQuiz();
+        newPrevBtn.addEventListener('click', () => {
+            this.previousQuestion();
+        });
+    }
+
+    if (nextQuestion) {
+        const newNextBtn = nextQuestion.cloneNode(true);
+        nextQuestion.parentNode.replaceChild(newNextBtn, nextQuestion);
+
+        newNextBtn.addEventListener('click', () => {
+            this.nextQuestion();
+        });
+    }
+
+    if (submitQuiz) {
+        const newSubmitBtn = submitQuiz.cloneNode(true);
+        submitQuiz.parentNode.replaceChild(newSubmitBtn, submitQuiz);
+
+        newSubmitBtn.addEventListener('click', () => {
+            this.submitQuiz();
+        });
+    }
+}
+
+    bindModalOverlayEvents() {
+        // Close modals on overlay click, but reset quiz state for quiz modal
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('active');
+
+                    // Special handling for quiz modal
+                    if (overlay.id === 'quizTakingModal') {
+                        setTimeout(() => {
+                            this.resetQuiz();
+                        }, 300);
+                    }
+                }
             });
-        }
+        });
     }
 
     // ==============================
@@ -881,66 +984,176 @@ class Dashboard {
     }
 
     createQuizItem(quiz) {
-        const item = document.createElement('div');
-        item.className = 'quiz-item';
+    const item = document.createElement('div');
+    item.className = 'quiz-item';
 
-        const formatDate = (dateString) => {
-            const date = new Date(dateString);
-            return date.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-            });
-        };
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
 
-        const getDifficultyColor = (difficulty) => {
-            switch (difficulty) {
-                case 'easy': return '#10b981';
-                case 'medium': return '#f59e0b';
-                case 'hard': return '#ef4444';
-                case 'extreme': return '#8b5cf6';
-                default: return '#6b7280';
-            }
-        };
+    const getDifficultyColor = (difficulty) => {
+        switch (difficulty) {
+            case 'easy': return '#10b981';
+            case 'medium': return '#f59e0b';
+            case 'hard': return '#ef4444';
+            case 'extreme': return '#c306ff';
+            default: return '#6b7280';
+        }
+    };
 
-        item.innerHTML = `
-            <div class="quiz-header">
-                <div class="quiz-info">
-                    <h4>${quiz.title}</h4>
-                    <p>Created on ${formatDate(quiz.created_at)} • 
-                       <span style="color: ${getDifficultyColor(quiz.difficulty)}">${quiz.difficulty}</span>
-                    </p>
-                </div>
-                <div class="quiz-actions">
-                    <button class="quiz-btn primary" onclick="dashboard.takeQuiz(${quiz.id})">
-                        <i class="fas fa-play"></i> Take Quiz
-                    </button>
-                    <button class="quiz-btn" onclick="dashboard.downloadQuiz(${quiz.id})">
-                        <i class="fas fa-download"></i> Download
-                    </button>
-                    <button class="quiz-btn" onclick="dashboard.deleteQuiz(${quiz.id})">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
+    const getPerformanceColor = (score) => {
+        if (score >= 90) return '#10b981';
+        if (score >= 80) return '#22c55e';
+        if (score >= 70) return '#f59e0b';
+        if (score >= 60) return '#fb923c';
+        return '#ef4444';
+    };
+
+    const getPerformanceIcon = (score) => {
+        if (score >= 90) return 'fa-trophy';
+        if (score >= 80) return 'fa-medal';
+        if (score >= 70) return 'fa-thumbs-up';
+        if (score >= 60) return 'fa-meh';
+        return 'fa-thumbs-down';
+    };
+
+    item.innerHTML = `
+        <div class="quiz-header">
+            <div class="quiz-info">
+                <h4 class="quiz-title">${quiz.title}</h4>
+                <div class="quiz-meta">
+                    <span class="quiz-date">Created ${formatDate(quiz.created_at)}</span>
+                    <span class="quiz-difficulty" style="color: ${getDifficultyColor(quiz.difficulty)}">
+                        <i class="fas fa-signal"></i> ${quiz.difficulty}
+                    </span>
                 </div>
             </div>
-            <div class="quiz-stats">
-                <div class="quiz-stat">
+            <div class="quiz-actions">
+                <button class="quiz-btn primary" onclick="dashboard.takeQuiz(${quiz.id})" title="Start a new attempt">
+                    <i class="fas fa-play"></i> Take Quiz
+                </button>
+                <button class="quiz-btn" onclick="dashboard.toggleQuizHistory(${quiz.id}, this)" title="View attempt history">
+                    <i class="fas fa-history"></i> History
+                </button>
+                <button class="quiz-btn" onclick="dashboard.showQuizAnalytics(${quiz.id})" title="View detailed analytics">
+                    <i class="fas fa-chart-bar"></i> Analytics
+                </button>
+                <button class="quiz-btn" onclick="dashboard.downloadQuiz(${quiz.id})" title="Download quiz">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <button class="quiz-btn danger" onclick="dashboard.deleteQuiz(${quiz.id})" title="Delete quiz">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="quiz-stats-grid">
+            <div class="quiz-stat">
+                <div class="stat-icon">
                     <i class="fas fa-question-circle"></i>
-                    <span>${quiz.question_count} questions</span>
                 </div>
-                <div class="quiz-stat">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Best: ${quiz.last_score || 0}%</span>
-                </div>
-                <div class="quiz-stat">
-                    <i class="fas fa-redo"></i>
-                    <span>${quiz.attempt_count || 0} attempts</span>
+                <div class="stat-content">
+                    <span class="stat-number">${quiz.question_count}</span>
+                    <span class="stat-label">Questions</span>
                 </div>
             </div>
-        `;
+            <div class="quiz-stat">
+                <div class="stat-icon">
+                    <i class="fas fa-redo"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-number">${quiz.attempt_count || 0}</span>
+                    <span class="stat-label">Attempts</span>
+                </div>
+            </div>
+            <div class="quiz-stat">
+                <div class="stat-icon" style="color: ${getPerformanceColor(quiz.last_score || 0)}">
+                    <i class="fas ${getPerformanceIcon(quiz.last_score || 0)}"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-number" style="color: ${getPerformanceColor(quiz.last_score || 0)}">${quiz.last_score || 0}%</span>
+                    <span class="stat-label">Best Score</span>
+                </div>
+            </div>
+            <div class="quiz-stat">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-number">${Math.ceil((quiz.question_count || 10) * 1.5)}</span>
+                    <span class="stat-label">Est. Minutes</span>
+                </div>
+            </div>
+        </div>
+        
+        ${(quiz.attempt_count > 0) ? `
+            <div class="quiz-performance-summary">
+                <div class="performance-indicator">
+                    <div class="performance-bar">
+                        <div class="performance-fill" style="width: ${quiz.last_score || 0}%; background: ${getPerformanceColor(quiz.last_score || 0)};"></div>
+                    </div>
+                    <span class="performance-text">
+                        ${quiz.last_score >= 90 ? 'Excellent Performance!' : 
+                          quiz.last_score >= 80 ? 'Great Job!' :
+                          quiz.last_score >= 70 ? 'Good Work!' :
+                          quiz.last_score >= 60 ? 'Keep Practicing!' : 'Needs Improvement'}
+                    </span>
+                </div>
+            </div>
+        ` : `
+            <div class="quiz-performance-summary">
+                <div class="no-attempts-message">
+                    <i class="fas fa-play-circle"></i>
+                    <span>Take your first attempt to see performance insights!</span>
+                </div>
+            </div>
+        `}
+        
+        <div class="quiz-history" id="history-${quiz.id}" style="display: none;">
+            <div class="history-header">
+                <h5><i class="fas fa-history"></i> Attempt History</h5>
+                <div class="history-controls">
+                    <button class="history-control-btn" onclick="dashboard.refreshQuizHistory(${quiz.id})" title="Refresh history">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button class="history-control-btn" onclick="dashboard.exportQuizHistory(${quiz.id})" title="Export all attempts">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+                <div class="history-loading" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i> Loading...
+                </div>
+            </div>
+            <div class="history-content">
+                <!-- History will be loaded here -->
+            </div>
+        </div>
+        
+        <div class="quiz-analytics" id="analytics-${quiz.id}" style="display: none;">
+            <div class="analytics-header">
+                <h5><i class="fas fa-chart-bar"></i> Performance Analytics</h5>
+                <div class="analytics-loading" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i> Loading analytics...
+                </div>
+            </div>
+            <div class="analytics-content">
+                <!-- Analytics will be loaded here -->
+            </div>
+        </div>
+    `;
 
-        return item;
-    }
+    // Process LaTeX in quiz title and other content
+    this.processLatexInElement(item);
+
+    return item;
+}
 
     // ==============================
     // QUIZ UI METHODS
@@ -967,151 +1180,168 @@ class Dashboard {
     }
 
     renderCurrentQuestion() {
-    if (!this.currentQuiz) return;
+        if (!this.currentQuiz) return;
 
-    const container = document.getElementById('quizContainer');
-    const question = this.currentQuiz.questions[this.currentQuestionIndex];
+        const container = document.getElementById('quizContainer');
+        const question = this.currentQuiz.questions[this.currentQuestionIndex];
 
-    let optionsHtml = '';
+        let optionsHtml = '';
 
-    switch (question.type) {
-        case 'multiple-choice':
-            if (question.options && typeof question.options === 'object') {
-                optionsHtml = Object.entries(question.options).map(([key, option], index) => `
-                    <label class="option-item ${this.userAnswers[this.currentQuestionIndex] === index ? 'selected' : ''}">
-                        <input type="radio" name="question_${question.id}" value="${index}" 
-                               ${this.userAnswers[this.currentQuestionIndex] === index ? 'checked' : ''}
-                               onchange="dashboard.selectAnswer(${index})">
-                        <span>${key}. ${option}</span>
+        switch (question.type) {
+            case 'multiple-choice':
+                if (question.options && typeof question.options === 'object') {
+                    optionsHtml = Object.entries(question.options).map(([key, option], index) => `
+                        <label class="option-item ${this.userAnswers[this.currentQuestionIndex] === index ? 'selected' : ''}">
+                            <input type="radio" name="question_${question.id}" value="${index}" 
+                                   ${this.userAnswers[this.currentQuestionIndex] === index ? 'checked' : ''}
+                                   onchange="dashboard.selectAnswer(${index})">
+                            <span class="option-text">${key}. ${option}</span>
+                        </label>
+                    `).join('');
+                }
+                break;
+
+            case 'true-false':
+                optionsHtml = `
+                    <label class="option-item ${this.userAnswers[this.currentQuestionIndex] === 0 ? 'selected' : ''}">
+                        <input type="radio" name="question_${question.id}" value="0" 
+                               ${this.userAnswers[this.currentQuestionIndex] === 0 ? 'checked' : ''}
+                               onchange="dashboard.selectAnswer(0)">
+                        <span class="option-text">True</span>
                     </label>
-                `).join('');
+                    <label class="option-item ${this.userAnswers[this.currentQuestionIndex] === 1 ? 'selected' : ''}">
+                        <input type="radio" name="question_${question.id}" value="1" 
+                               ${this.userAnswers[this.currentQuestionIndex] === 1 ? 'checked' : ''}
+                               onchange="dashboard.selectAnswer(1)">
+                        <span class="option-text">False</span>
+                    </label>
+                `;
+                break;
+
+            case 'short-answer':
+                const currentTextAnswer = this.userAnswers[this.currentQuestionIndex] || '';
+                optionsHtml = `
+                    <div class="text-answer-input">
+                        <textarea 
+                            placeholder="Enter your answer here (you can use LaTeX like \`x^2\` or \`\\sin{x}\`)..." 
+                            rows="4"
+                            class="answer-textarea"
+                            style="width: 100%; padding: 12px; border: 2px solid var(--border); 
+                                   border-radius: 8px; background: var(--bg-secondary); 
+                                   color: var(--text-primary); font-family: inherit; 
+                                   font-size: 16px; resize: vertical; min-height: 100px;"
+                            oninput="dashboard.selectTextAnswer(this.value)"
+                            onchange="dashboard.selectTextAnswer(this.value)">${currentTextAnswer}</textarea>
+                        <div class="latex-preview" style="margin-top: 8px; padding: 8px; background: var(--bg-tertiary); border-radius: 4px; min-height: 20px;">
+                            <small style="color: var(--text-secondary);">Preview: </small>
+                            <span class="preview-content"></span>
+                        </div>
+                    </div>
+                `;
+                break;
+
+            case 'fill-in-blank':
+                const currentAnswers = this.userAnswers[this.currentQuestionIndex] || [];
+                let cleanQuestionText = question.text;
+
+                const fillInPrefixes = [
+                    'Fill in the blank:',
+                    'Fill in the blanks:',
+                    'fill in the blank:',
+                    'fill in the blanks:'
+                ];
+
+                for (const prefix of fillInPrefixes) {
+                    if (cleanQuestionText.toLowerCase().startsWith(prefix.toLowerCase())) {
+                        cleanQuestionText = cleanQuestionText.substring(prefix.length).trim();
+                        break;
+                    }
+                }
+
+                const blankRegex = /_+/g;
+                const blankCount = (cleanQuestionText.match(blankRegex) || []).length;
+                const questionParts = cleanQuestionText.split(blankRegex);
+
+                if (!Array.isArray(this.userAnswers[this.currentQuestionIndex])) {
+                    this.userAnswers[this.currentQuestionIndex] = new Array(blankCount).fill('');
+                }
+
+                let fillInHtml = '<div class="fill-in-question">';
+
+                for (let i = 0; i < questionParts.length; i++) {
+                    fillInHtml += `<span class="question-part">${questionParts[i]}</span>`;
+
+                    if (i < questionParts.length - 1) {
+                        const currentValue = Array.isArray(currentAnswers) ? (currentAnswers[i] || '') : '';
+                        fillInHtml += `
+                            <input type="text" 
+                                   class="fill-blank-input" 
+                                   data-blank-index="${i}"
+                                   value="${currentValue}"
+                                   placeholder="..."
+                                   onchange="dashboard.selectFillInAnswer(${i}, this.value)"
+                                   oninput="dashboard.selectFillInAnswer(${i}, this.value)"
+                                   style="display: inline-block; min-width: 120px; width: auto; 
+                                          padding: 8px 12px; margin: 0 6px; 
+                                          border: 2px solid var(--border); border-radius: 6px; 
+                                          background: var(--bg-secondary); color: var(--text-primary); 
+                                          font-family: inherit; font-size: 16px; font-weight: 500;">
+                        `;
+                    }
+                }
+                fillInHtml += '</div>';
+                optionsHtml = fillInHtml;
+                break;
+
+            default:
+                optionsHtml = '<p>Unsupported question type</p>';
+        }
+
+        const getTypeColor = (type) => {
+            switch(type) {
+                case 'multiple-choice': return '#3b82f6';
+                case 'true-false': return '#10b981';
+                case 'short-answer': return '#f59e0b';
+                case 'fill-in-blank': return '#8b5cf6';
+                default: return '#6b7280';
             }
-            break;
+        };
 
-        case 'true-false':
-            optionsHtml = `
-                <label class="option-item ${this.userAnswers[this.currentQuestionIndex] === 0 ? 'selected' : ''}">
-                    <input type="radio" name="question_${question.id}" value="0" 
-                           ${this.userAnswers[this.currentQuestionIndex] === 0 ? 'checked' : ''}
-                           onchange="dashboard.selectAnswer(0)">
-                    <span>True</span>
-                </label>
-                <label class="option-item ${this.userAnswers[this.currentQuestionIndex] === 1 ? 'selected' : ''}">
-                    <input type="radio" name="question_${question.id}" value="1" 
-                           ${this.userAnswers[this.currentQuestionIndex] === 1 ? 'checked' : ''}
-                           onchange="dashboard.selectAnswer(1)">
-                    <span>False</span>
-                </label>
-            `;
-            break;
+        const getTypeLabel = (type) => {
+            switch(type) {
+                case 'multiple-choice': return 'Multiple Choice';
+                case 'true-false': return 'True/False';
+                case 'short-answer': return 'Short Answer';
+                case 'fill-in-blank': return 'Fill in Blanks';
+                default: return type.replace('-', ' ').toUpperCase();
+            }
+        };
 
-        case 'short-answer':
-            const currentTextAnswer = this.userAnswers[this.currentQuestionIndex] || '';
-            optionsHtml = `
-                <div class="text-answer-input">
-                    <textarea 
-                        placeholder="Enter your answer here..." 
-                        rows="4"
-                        style="width: 100%; padding: 12px; border: 2px solid var(--border); 
-                               border-radius: 8px; background: var(--bg-secondary); 
-                               color: var(--text-primary); font-family: inherit; 
-                               font-size: 16px; resize: vertical; min-height: 100px;"
-                        oninput="dashboard.selectTextAnswer(this.value)"
-                        onchange="dashboard.selectTextAnswer(this.value)">${currentTextAnswer}</textarea>
+        const displayText = question.type === 'fill-in-blank' ? 'Fill in the blank:' : question.text;
+
+        container.innerHTML = `
+            <div class="question-card">
+                <div class="question-header">
+                    <div class="question-number">${this.currentQuestionIndex + 1}</div>
+                    <div class="question-text">${displayText}</div>
+                    <div class="question-type-badge" style="background: ${getTypeColor(question.type)}">
+                        ${getTypeLabel(question.type)}
+                    </div>
                 </div>
-            `;
-            break;
+                <div class="question-options">
+                    ${optionsHtml}
+                </div>
+            </div>
+        `;
 
-        case 'fill-in-blank':
-            const currentAnswers = this.userAnswers[this.currentQuestionIndex] || [];
+        // Process LaTeX in the rendered content
+        this.processLatexInElement(container);
 
-            // Clean the question text by removing "Fill in the blank:" prefix if it exists
-            let cleanQuestionText = question.text;
-            const fillInPrefixes = [
-                'Fill in the blank:',
-                'Fill in the blanks:',
-                'fill in the blank:',
-                'fill in the blanks:'
-            ];
-
-            for (const prefix of fillInPrefixes) {
-                if (cleanQuestionText.toLowerCase().startsWith(prefix.toLowerCase())) {
-                    cleanQuestionText = cleanQuestionText.substring(prefix.length).trim();
-                    break;
-                }
-            }
-
-            const questionParts = cleanQuestionText.split('___');
-            let fillInHtml = '<div class="fill-in-question">';
-
-            for (let i = 0; i < questionParts.length; i++) {
-                fillInHtml += `<span>${questionParts[i]}</span>`;
-
-                // Add input field between parts (except after the last part)
-                if (i < questionParts.length - 1) {
-                    const currentValue = Array.isArray(currentAnswers) ? (currentAnswers[i] || '') : '';
-                    fillInHtml += `
-                        <input type="text" 
-                               class="fill-blank-input" 
-                               data-blank-index="${i}"
-                               value="${currentValue}"
-                               placeholder="..."
-                               onchange="dashboard.selectFillInAnswer(${i}, this.value)"
-                               oninput="dashboard.selectFillInAnswer(${i}, this.value)"
-                               style="display: inline-block; min-width: 120px; width: auto; 
-                                      padding: 8px 12px; margin: 0 6px; 
-                                      border: 2px solid var(--border); border-radius: 6px; 
-                                      background: var(--bg-secondary); color: var(--text-primary); 
-                                      font-family: inherit; font-size: 16px; font-weight: 500;">
-                    `;
-                }
-            }
-            fillInHtml += '</div>';
-            optionsHtml = fillInHtml;
-            break;
-
-        default:
-            optionsHtml = '<p>Unsupported question type</p>';
+        // Set up preview for short answer questions
+        if (question.type === 'short-answer') {
+            this.setupAnswerPreview();
+        }
     }
-
-    const getTypeColor = (type) => {
-        switch(type) {
-            case 'multiple-choice': return '#3b82f6';
-            case 'true-false': return '#10b981';
-            case 'short-answer': return '#f59e0b';
-            case 'fill-in-blank': return '#8b5cf6';
-            default: return '#6b7280';
-        }
-    };
-
-    const getTypeLabel = (type) => {
-        switch(type) {
-            case 'multiple-choice': return 'Multiple Choice';
-            case 'true-false': return 'True/False';
-            case 'short-answer': return 'Short Answer';
-            case 'fill-in-blank': return 'Fill in Blanks';
-            default: return type.replace('-', ' ').toUpperCase();
-        }
-    };
-
-    // For fill-in-blank questions, show clean question text in header
-    const displayText = question.type === 'fill-in-blank' ? 'Fill in the blank:' : question.text;
-
-    container.innerHTML = `
-        <div class="question-card">
-            <div class="question-header">
-                <div class="question-number">${this.currentQuestionIndex + 1}</div>
-                <div class="question-text">${displayText}</div>
-                <div class="question-type-badge" style="background: ${getTypeColor(question.type)}">
-                    ${getTypeLabel(question.type)}
-                </div>
-            </div>
-            <div class="question-options">
-                ${optionsHtml}
-            </div>
-        </div>
-    `;
-}
 
     selectFillInAnswer(blankIndex, value) {
         if (!Array.isArray(this.userAnswers[this.currentQuestionIndex])) {
@@ -1122,6 +1352,13 @@ class Dashboard {
 
     selectTextAnswer(value) {
         this.userAnswers[this.currentQuestionIndex] = value.trim();
+
+        // Update preview if it exists
+        const previewContent = document.querySelector('.preview-content');
+        if (previewContent) {
+            const processed = this.processLatexInText(value);
+            previewContent.innerHTML = processed || '<em>Your answer preview will appear here...</em>';
+        }
     }
 
     selectAnswer(answerIndex) {
@@ -1133,36 +1370,22 @@ class Dashboard {
         });
     }
 
-// Add this new method for handling fill-in-the-blank answers
-selectFillInAnswer(blankIndex, value) {
-    if (!Array.isArray(this.userAnswers[this.currentQuestionIndex])) {
-        this.userAnswers[this.currentQuestionIndex] = [];
-    }
-    this.userAnswers[this.currentQuestionIndex][blankIndex] = value.trim();
-}
+    setupAnswerPreview() {
+        const textarea = document.querySelector('.answer-textarea');
+        const previewContent = document.querySelector('.preview-content');
 
-// Add this new method for handling text answers
-selectTextAnswer(value) {
-    this.userAnswers[this.currentQuestionIndex] = value.trim();
-}
+        if (textarea && previewContent) {
+            const updatePreview = () => {
+                const processed = this.processLatexInText(textarea.value);
+                previewContent.innerHTML = processed || '<em>Your answer preview will appear here...</em>';
+            };
 
-// Update your selectAnswer method to handle different answer types
-selectAnswer(answerIndex) {
-    this.userAnswers[this.currentQuestionIndex] = answerIndex;
+            // Initial preview
+            updatePreview();
 
-    // Update visual selection for radio buttons only
-    document.querySelectorAll('.option-item').forEach((item, index) => {
-        item.classList.toggle('selected', index === answerIndex);
-    });
-}
-
-    selectAnswer(answerIndex) {
-        this.userAnswers[this.currentQuestionIndex] = answerIndex;
-
-        // Update visual selection
-        document.querySelectorAll('.option-item').forEach((item, index) => {
-            item.classList.toggle('selected', index === answerIndex);
-        });
+            // Update on input
+            textarea.addEventListener('input', updatePreview);
+        }
     }
 
     previousQuestion() {
@@ -1246,70 +1469,655 @@ selectAnswer(answerIndex) {
     }
 
     retakeQuiz() {
-        this.currentQuestionIndex = 0;
-        this.userAnswers = new Array(this.currentQuiz.questions.length).fill(null);
+    if (!this.currentQuiz) return;
 
-        // Reset modal body
-        const modal = document.getElementById('quizTakingModal');
-        const body = modal.querySelector('.modal-body');
-        body.innerHTML = `
-            <div class="quiz-progress">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
+    // Reset answers but keep the same quiz
+    this.currentQuestionIndex = 0;
+    this.userAnswers = new Array(this.currentQuiz.questions.length).fill(null);
+
+    // Reset modal body
+    this.resetQuizModalBody();
+
+    this.renderCurrentQuestion();
+    this.updateQuizProgress();
+}
+
+    closeQuizModal() {
+    const modal = document.getElementById('quizTakingModal');
+    modal.classList.remove('active');
+
+    // Add a small delay to ensure modal is closed before resetting
+    setTimeout(() => {
+        this.resetQuiz();
+    }, 300);
+}
+
+    resetQuiz() {
+    this.resetQuizState();
+    this.resetQuizModalBody();
+}
+
+    async toggleQuizHistory(quizId, button) {
+        const historyDiv = document.getElementById(`history-${quizId}`);
+        const historyContent = historyDiv.querySelector('.history-content');
+        const loadingDiv = historyDiv.querySelector('.history-loading');
+        const icon = button.querySelector('i');
+
+        if (historyDiv.style.display === 'none') {
+            // Show history
+            historyDiv.style.display = 'block';
+            icon.className = 'fas fa-chevron-up';
+            button.innerHTML = '<i class="fas fa-chevron-up"></i> Hide History';
+
+            // Load attempts if not already loaded
+            if (!historyContent.hasChildNodes()) {
+                try {
+                    loadingDiv.style.display = 'block';
+                    const attempts = await this.getQuizAttempts(quizId);
+                    this.renderQuizHistory(historyContent, attempts);
+                    loadingDiv.style.display = 'none';
+                } catch (error) {
+                    loadingDiv.style.display = 'none';
+                    historyContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load history</p>';
+                }
+            }
+        } else {
+            // Hide history
+            historyDiv.style.display = 'none';
+            icon.className = 'fas fa-history';
+            button.innerHTML = '<i class="fas fa-history"></i> History';
+        }
+    }
+
+    async getQuizAttempts(quizId) {
+        try {
+            const response = await this.apiCall(`/api/quizzes/${quizId}/attempts`);
+            return response.attempts || [];
+        } catch (error) {
+            console.error('Failed to get quiz attempts:', error);
+            throw error;
+        }
+    }
+
+    renderQuizHistory(container, attempts) {
+        if (!attempts || attempts.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No attempts yet</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+
+        attempts.forEach((attempt, index) => {
+            const attemptItem = this.createAttemptItem(attempt, index + 1);
+            container.appendChild(attemptItem);
+        });
+    }
+
+    createAttemptItem(attempt, attemptNumber) {
+        const item = document.createElement('div');
+        item.className = 'attempt-item';
+
+        const formatDate = (dateString) => {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        };
+
+        const getScoreColor = (score) => {
+            if (score >= 90) return '#10b981';
+            if (score >= 80) return '#22c55e';
+            if (score >= 70) return '#f59e0b';
+            if (score >= 60) return '#fb923c';
+            return '#ef4444';
+        };
+
+        const getScoreGrade = (score) => {
+            if (score >= 90) return 'A';
+            if (score >= 80) return 'B';
+            if (score >= 70) return 'C';
+            if (score >= 60) return 'D';
+            return 'F';
+        };
+
+        const hasDetailedFeedback = attempt.validation_results && attempt.validation_results.validation_results;
+        const isLLMValidated = attempt.validation_results && attempt.validation_results.validation_method === 'llm';
+
+        item.innerHTML = `
+            <div class="attempt-header">
+                <div class="attempt-info">
+                    <div class="attempt-number">
+                        <span class="attempt-badge">Attempt ${attemptNumber}</span>
+                        ${isLLMValidated ? '<span class="llm-badge"><i class="fas fa-robot"></i> AI Validated</span>' : ''}
+                    </div>
+                    <div class="attempt-date">${formatDate(attempt.submitted_at)}</div>
                 </div>
-                <span class="progress-text" id="questionProgress">1 of ${this.currentQuiz.questions.length}</span>
+                <div class="attempt-score">
+                    <div class="score-display" style="background: ${getScoreColor(attempt.score)};">
+                        <span class="score-number">${attempt.score}%</span>
+                        <span class="score-grade">${getScoreGrade(attempt.score)}</span>
+                    </div>
+                </div>
             </div>
-            <div class="quiz-container" id="quizContainer">
-                <!-- Quiz questions will be loaded here -->
-            </div>
-            <div class="quiz-navigation">
-                <button class="btn-secondary" id="prevQuestion" disabled>Previous</button>
-                <button class="btn-primary" id="nextQuestion">Next</button>
-                <button class="btn-primary" id="submitQuiz" style="display: none;">Submit Quiz</button>
+            
+            ${hasDetailedFeedback ? `
+                <div class="attempt-actions">
+                    <button class="attempt-btn" onclick="dashboard.viewAttemptDetails(${attempt.id})">
+                        <i class="fas fa-eye"></i> View Details
+                    </button>
+                    <button class="attempt-btn" onclick="dashboard.downloadAttemptResults(${attempt.id})">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    ${attempt.revalidated_at ? `
+                        <span class="revalidated-badge">
+                            <i class="fas fa-sync"></i> Re-validated ${formatDate(attempt.revalidated_at)}
+                        </span>
+                    ` : `
+                        <button class="attempt-btn" onclick="dashboard.revalidateQuizAttempt(${attempt.id})">
+                            <i class="fas fa-robot"></i> Re-validate
+                        </button>
+                    `}
+                </div>
+            ` : `
+                <div class="attempt-actions">
+                    <button class="attempt-btn" onclick="dashboard.revalidateQuizAttempt(${attempt.id})">
+                        <i class="fas fa-robot"></i> Get AI Feedback
+                    </button>
+                </div>
+            `}
+            
+            <div class="attempt-summary" id="summary-${attempt.id}" style="display: none;">
+                <!-- Detailed summary will be loaded here -->
             </div>
         `;
 
-        // Re-bind events
-        this.bindQuizModalEvents();
-
-        this.renderCurrentQuestion();
-        this.updateQuizProgress();
+        return item;
     }
 
-    closeQuizModal() {
-        document.getElementById('quizTakingModal').classList.remove('active');
-        this.resetQuiz();
+    async viewAttemptDetails(attemptId) {
+        try {
+            this.showLoading('Loading attempt details...');
+
+            const attempt = await this.apiCall(`/api/quiz-attempts/${attemptId}`);
+
+            this.hideLoading();
+            this.showAttemptDetailsModal(attempt);
+
+        } catch (error) {
+            this.hideLoading();
+            this.showNotification('Failed to load attempt details', 'error');
+        }
     }
 
-    resetQuiz() {
-        this.currentQuiz = null;
-        this.currentQuestionIndex = 0;
-        this.userAnswers = [];
+    showAttemptDetailsModal(attempt) {
+        // Create and show a modal with detailed attempt information
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay attempt-details-modal';
+        modal.style.zIndex = '10000';
 
-        // Reset modal body to original state
-        const modal = document.getElementById('quizTakingModal');
-        const body = modal.querySelector('.modal-body');
-        if (body) {
-            body.innerHTML = `
-                <div class="quiz-progress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
+        const hasDetailedResults = attempt.validation_results && attempt.validation_results.validation_results;
+
+        modal.innerHTML = `
+            <div class="modal large">
+                <div class="modal-header">
+                    <h2>Attempt Details</h2>
+                    <div class="attempt-meta">
+                        <span class="attempt-score-large" style="background: ${this.getScoreColor(attempt.score)};">
+                            ${attempt.score}%
+                        </span>
+                        <div class="attempt-info-text">
+                            <p>Quiz: ${attempt.quiz_title}</p>
+                            <p>Submitted: ${new Date(attempt.submitted_at).toLocaleString()}</p>
+                            ${attempt.validation_results ? '<p><i class="fas fa-robot"></i> AI Enhanced Grading</p>' : ''}
+                        </div>
                     </div>
-                    <span class="progress-text" id="questionProgress">0 of 0</span>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
-                <div class="quiz-container" id="quizContainer">
-                    <!-- Quiz questions will be loaded here -->
+                <div class="modal-body">
+                    ${hasDetailedResults ? this.renderDetailedResults(attempt.validation_results.validation_results) : 
+                      '<p style="text-align: center; color: var(--text-secondary);">Basic scoring only. Use AI re-validation for detailed feedback.</p>'}
                 </div>
-                <div class="quiz-navigation">
-                    <button class="btn-secondary" id="prevQuestion" disabled>Previous</button>
-                    <button class="btn-primary" id="nextQuestion">Next</button>
-                    <button class="btn-primary" id="submitQuiz" style="display: none;">Submit Quiz</button>
-                </div>
-            `;
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        modal.classList.add('active');
+
+        // Process LaTeX in the modal content
+        this.processLatexInElement(modal);
+
+        // Close on overlay click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+
+    renderDetailedResults(results) {
+        if (!results || results.length === 0) {
+            return '<p>No detailed results available.</p>';
         }
 
-        // Re-bind events
-        this.bindQuizModalEvents();
+        let html = '<div class="detailed-results">';
+
+        results.forEach((result, index) => {
+            const scoreColor = result.score_percentage >= 100 ? '#10b981' :
+                              result.score_percentage >= 50 ? '#f59e0b' : '#ef4444';
+
+            html += `
+                <div class="result-item" style="margin-bottom: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border-left: 4px solid ${scoreColor};">
+                    <div class="result-header">
+                        <h4>Question ${index + 1}</h4>
+                        <div class="result-score" style="background: ${scoreColor}; color: white; padding: 4px 8px; border-radius: 4px;">
+                            ${result.score_percentage || 0}%
+                        </div>
+                    </div>
+                    
+                    ${result.question_text ? `
+                        <div class="question-text" style="margin: 8px 0; color: var(--text-secondary);">
+                            ${result.question_text}
+                        </div>
+                    ` : ''}
+                    
+                    <div class="student-answer" style="margin: 8px 0;">
+                        <strong>Your Answer:</strong> ${result.student_answer || 'No answer provided'}
+                    </div>
+                    
+                    ${result.feedback ? `
+                        <div class="feedback" style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px; margin-top: 8px;">
+                            <strong>Feedback:</strong>
+                            <p style="margin: 4px 0 0 0; color: var(--text-secondary);">${result.feedback}</p>
+                        </div>
+                    ` : ''}
+                    
+                    ${result.partial_credit_details ? `
+                        <div class="partial-credit" style="background: #fef3c7; padding: 8px; border-radius: 6px; margin-top: 8px; border: 1px solid #f59e0b;">
+                            <small style="color: #92400e;">
+                                <i class="fas fa-info-circle"></i> ${result.partial_credit_details}
+                            </small>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        return html;
+    }
+
+    getScoreColor(score) {
+        if (score >= 90) return '#10b981';
+        if (score >= 80) return '#22c55e';
+        if (score >= 70) return '#f59e0b';
+        if (score >= 60) return '#fb923c';
+        return '#ef4444';
+    }
+
+    async revalidateQuizAttempt(attemptId) {
+        try {
+            this.showLoading('Re-validating with AI...');
+
+            const result = await this.apiCall(`/api/quiz-attempts/${attemptId}/revalidate`, {
+                method: 'POST'
+            });
+
+            this.hideLoading();
+            this.showNotification('Re-validation complete!', 'success');
+
+            // Refresh the quiz list to show updated results
+            if (this.currentProject) {
+                await this.refreshCurrentProject();
+                this.renderProjectQuizzes();
+            }
+
+        } catch (error) {
+            this.hideLoading();
+            this.showNotification('Failed to re-validate attempt', 'error');
+        }
+    }
+
+    async downloadAttemptResults(attemptId) {
+        try {
+            this.showLoading('Generating results...');
+
+            const attempt = await this.apiCall(`/api/quiz-attempts/${attemptId}`);
+
+            // Create downloadable content
+            let content = `QUIZ ATTEMPT RESULTS\n`;
+            content += `===================\n\n`;
+            content += `Quiz: ${attempt.quiz_title}\n`;
+            content += `Date: ${new Date(attempt.submitted_at).toLocaleDateString()}\n`;
+            content += `Score: ${attempt.score}%\n`;
+            content += `Grade: ${this.getScoreGrade(attempt.score)}\n\n`;
+
+            if (attempt.validation_results && attempt.validation_results.validation_results) {
+                content += `DETAILED FEEDBACK\n`;
+                content += `================\n\n`;
+
+                attempt.validation_results.validation_results.forEach((result, index) => {
+                    content += `Question ${index + 1}\n`;
+                    content += `-------------\n`;
+                    if (result.question_text) {
+                        content += `${result.question_text}\n\n`;
+                    }
+                    content += `Your Answer: ${result.student_answer || 'No answer provided'}\n`;
+                    content += `Score: ${result.score_percentage}%\n`;
+                    if (result.feedback) {
+                        content += `Feedback: ${result.feedback}\n`;
+                    }
+                    if (result.partial_credit_details) {
+                        content += `Partial Credit: ${result.partial_credit_details}\n`;
+                    }
+                    content += `\n`;
+                });
+            }
+
+            // Download the file
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `quiz_attempt_${attemptId}_results.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            this.hideLoading();
+            this.showNotification('Results downloaded!', 'success');
+
+        } catch (error) {
+            this.hideLoading();
+            this.showNotification('Failed to download results', 'error');
+        }
+    }
+
+    getScoreGrade(score) {
+        if (score >= 90) return 'A';
+        if (score >= 80) return 'B';
+        if (score >= 70) return 'C';
+        if (score >= 60) return 'D';
+        return 'F';
+    }
+
+    async showQuizAnalytics(quizId) {
+        const analyticsDiv = document.getElementById(`analytics-${quizId}`);
+        const analyticsContent = analyticsDiv.querySelector('.analytics-content');
+        const loadingDiv = analyticsDiv.querySelector('.analytics-loading');
+
+        if (analyticsDiv.style.display === 'none') {
+            // Show analytics
+            analyticsDiv.style.display = 'block';
+
+            // Load analytics if not already loaded
+            if (!analyticsContent.hasChildNodes()) {
+                try {
+                    loadingDiv.style.display = 'block';
+                    const analytics = await this.getQuizAnalytics(quizId);
+                    this.renderQuizAnalytics(analyticsContent, analytics);
+                    loadingDiv.style.display = 'none';
+                } catch (error) {
+                    loadingDiv.style.display = 'none';
+                    analyticsContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load analytics</p>';
+                }
+            }
+        } else {
+            // Hide analytics
+            analyticsDiv.style.display = 'none';
+        }
+    }
+
+    async getQuizAnalytics(quizId) {
+        try {
+            const response = await this.apiCall(`/api/quizzes/${quizId}/analytics`);
+            return response;
+        } catch (error) {
+            console.error('Failed to get quiz analytics:', error);
+            throw error;
+        }
+    }
+
+    renderQuizAnalytics(container, analytics) {
+        if (!analytics) {
+            container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No analytics data available</p>';
+            return;
+        }
+
+        const getScoreColor = (score) => {
+            if (score >= 90) return '#10b981';
+            if (score >= 80) return '#22c55e';
+            if (score >= 70) return '#f59e0b';
+            if (score >= 60) return '#fb923c';
+            return '#ef4444';
+        };
+
+        const getTrendIcon = (trend) => {
+            if (trend > 2) return '<i class="fas fa-arrow-up" style="color: #10b981;"></i>';
+            if (trend < -2) return '<i class="fas fa-arrow-down" style="color: #ef4444;"></i>';
+            return '<i class="fas fa-minus" style="color: #6b7280;"></i>';
+        };
+
+        container.innerHTML = `
+            <div class="analytics-overview">
+                <div class="analytics-stats">
+                    <div class="analytics-stat">
+                        <div class="stat-header">
+                            <i class="fas fa-redo"></i>
+                            <span>Total Attempts</span>
+                        </div>
+                        <div class="stat-value">${analytics.total_attempts || 0}</div>
+                    </div>
+                    <div class="analytics-stat">
+                        <div class="stat-header">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Average Score</span>
+                        </div>
+                        <div class="stat-value" style="color: ${getScoreColor(analytics.avg_score || 0)}">${analytics.avg_score || 0}%</div>
+                    </div>
+                    <div class="analytics-stat">
+                        <div class="stat-header">
+                            <i class="fas fa-trophy"></i>
+                            <span>Best Score</span>
+                        </div>
+                        <div class="stat-value" style="color: ${getScoreColor(analytics.best_score || 0)}">${analytics.best_score || 0}%</div>
+                    </div>
+                    <div class="analytics-stat">
+                        <div class="stat-header">
+                            <i class="fas fa-chart-area"></i>
+                            <span>Improvement</span>
+                        </div>
+                        <div class="stat-value">
+                            ${getTrendIcon(analytics.improvement_trend || 0)}
+                            <span>${Math.abs(analytics.improvement_trend || 0).toFixed(1)}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+    
+            ${analytics.recent_scores && analytics.recent_scores.length > 1 ? `
+                <div class="score-progression">
+                    <h6><i class="fas fa-chart-line"></i> Recent Score Progression</h6>
+                    <div class="progression-chart">
+                        ${analytics.recent_scores.slice().reverse().map((score, index) => `
+                            <div class="progression-point" style="height: ${(score/100) * 60}px; background: ${getScoreColor(score)};" title="Attempt ${index + 1}: ${score}%">
+                                <span class="progression-label">${score}%</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+    
+            ${analytics.consistency_score !== undefined ? `
+                <div class="consistency-meter">
+                    <h6><i class="fas fa-balance-scale"></i> Consistency Score</h6>
+                    <div class="consistency-bar">
+                        <div class="consistency-fill" style="width: ${analytics.consistency_score}%; background: ${getScoreColor(analytics.consistency_score)};"></div>
+                    </div>
+                    <p class="consistency-text">
+                        ${analytics.consistency_score >= 80 ? 'Very consistent performance!' :
+                          analytics.consistency_score >= 60 ? 'Moderately consistent' :
+                          'Performance varies significantly'}
+                    </p>
+                </div>
+            ` : ''}
+    
+            <div class="analytics-insights">
+                <h6><i class="fas fa-lightbulb"></i> Performance Insights</h6>
+                <div class="insights-list">
+                    ${this.generateInsights(analytics).map(insight => `
+                        <div class="insight-item ${insight.type}">
+                            <i class="fas ${insight.icon}"></i>
+                            <span>${insight.text}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    generateInsights(analytics) {
+        const insights = [];
+
+        if (!analytics || analytics.total_attempts === 0) {
+            return [{ type: 'info', icon: 'fa-info-circle', text: 'Take your first attempt to get personalized insights!' }];
+        }
+
+        // Performance insights
+        if (analytics.best_score >= 95) {
+            insights.push({ type: 'success', icon: 'fa-star', text: 'Outstanding mastery of this topic!' });
+        } else if (analytics.best_score >= 85) {
+            insights.push({ type: 'success', icon: 'fa-thumbs-up', text: 'Excellent understanding demonstrated!' });
+        } else if (analytics.best_score < 70) {
+            insights.push({ type: 'warning', icon: 'fa-book-open', text: 'Consider reviewing the material more thoroughly.' });
+        }
+
+        // Improvement trend insights
+        if (analytics.improvement_trend > 5) {
+            insights.push({ type: 'success', icon: 'fa-arrow-up', text: 'Great improvement trend! Keep it up!' });
+        } else if (analytics.improvement_trend < -5) {
+            insights.push({ type: 'warning', icon: 'fa-arrow-down', text: 'Scores are declining. Take a break and review.' });
+        }
+
+        // Consistency insights
+        if (analytics.consistency_score >= 80) {
+            insights.push({ type: 'success', icon: 'fa-check-circle', text: 'Very consistent performance across attempts.' });
+        } else if (analytics.consistency_score < 50) {
+            insights.push({ type: 'info', icon: 'fa-exclamation-triangle', text: 'Performance varies significantly between attempts.' });
+        }
+
+        // Attempt frequency insights
+        if (analytics.total_attempts === 1) {
+            insights.push({ type: 'info', icon: 'fa-play', text: 'Try taking the quiz again to track your progress!' });
+        } else if (analytics.total_attempts > 10) {
+            insights.push({ type: 'info', icon: 'fa-medal', text: 'Dedicated learner! Many attempts show commitment.' });
+        }
+
+        // LLM validation insights
+        if (analytics.detailed_attempts > 0) {
+            insights.push({ type: 'info', icon: 'fa-robot', text: `${analytics.detailed_attempts} attempts have detailed AI feedback available.` });
+        }
+
+        return insights.length > 0 ? insights : [{ type: 'info', icon: 'fa-chart-bar', text: 'Keep taking attempts to unlock more insights!' }];
+    }
+
+    async refreshQuizHistory(quizId) {
+        const historyContent = document.querySelector(`#history-${quizId} .history-content`);
+        const loadingDiv = document.querySelector(`#history-${quizId} .history-loading`);
+
+        try {
+            loadingDiv.style.display = 'block';
+            historyContent.innerHTML = '';
+
+            const attempts = await this.getQuizAttempts(quizId);
+            this.renderQuizHistory(historyContent, attempts);
+
+            loadingDiv.style.display = 'none';
+            this.showNotification('History refreshed!', 'success');
+        } catch (error) {
+            loadingDiv.style.display = 'none';
+            this.showNotification('Failed to refresh history', 'error');
+        }
+    }
+
+    async exportQuizHistory(quizId) {
+        try {
+            this.showLoading('Exporting quiz history...');
+
+            const attempts = await this.getQuizAttempts(quizId);
+            const quiz = this.currentProject.quizzes.find(q => q.id === quizId);
+
+            if (!attempts || attempts.length === 0) {
+                this.hideLoading();
+                this.showNotification('No attempts to export', 'warning');
+                return;
+            }
+
+            // Create comprehensive export content
+            let content = `QUIZ HISTORY EXPORT\n`;
+            content += `==================\n\n`;
+            content += `Quiz: ${quiz?.title || 'Unknown Quiz'}\n`;
+            content += `Exported: ${new Date().toLocaleString()}\n`;
+            content += `Total Attempts: ${attempts.length}\n\n`;
+
+            attempts.forEach((attempt, index) => {
+                content += `ATTEMPT ${index + 1}\n`;
+                content += `-----------\n`;
+                content += `Date: ${new Date(attempt.submitted_at).toLocaleString()}\n`;
+                content += `Score: ${attempt.score}%\n`;
+                content += `AI Validated: ${attempt.is_llm_validated ? 'Yes' : 'No'}\n`;
+                if (attempt.revalidated_at) {
+                    content += `Re-validated: ${new Date(attempt.revalidated_at).toLocaleString()}\n`;
+                }
+                content += `\n`;
+            });
+
+            // Add performance summary
+            const scores = attempts.map(a => a.score);
+            const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+            const bestScore = Math.max(...scores);
+            const worstScore = Math.min(...scores);
+
+            content += `PERFORMANCE SUMMARY\n`;
+            content += `==================\n`;
+            content += `Average Score: ${avgScore.toFixed(1)}%\n`;
+            content += `Best Score: ${bestScore}%\n`;
+            content += `Lowest Score: ${worstScore}%\n`;
+            content += `Improvement: ${(bestScore - worstScore).toFixed(1)}%\n`;
+
+            // Download the file
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `quiz_${quizId}_history.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            this.hideLoading();
+            this.showNotification('History exported successfully!', 'success');
+
+        } catch (error) {
+            this.hideLoading();
+            this.showNotification('Failed to export history', 'error');
+        }
+    }
+
+    debugQuizState() {
+        console.log('Current Quiz State:', {
+            currentQuiz: this.currentQuiz,
+            currentQuestionIndex: this.currentQuestionIndex,
+            userAnswers: this.userAnswers,
+            modalBody: document.querySelector('#quizTakingModal .modal-body')?.innerHTML?.substring(0, 100) + '...'
+        });
     }
 
     // ==============================
@@ -1385,6 +2193,87 @@ selectAnswer(answerIndex) {
         }, 5000);
     }
 
+    processLatexInText(text) {
+        if (!text || typeof text !== 'string') return text;
+
+        // Check if KaTeX is available
+        if (typeof katex === 'undefined') {
+            console.warn('KaTeX not loaded - LaTeX expressions will not be rendered');
+            return text;
+        }
+
+        // Regular expression to find backtick-surrounded expressions
+        const latexRegex = /`([^`]+)`/g;
+
+        return text.replace(latexRegex, (match, expression) => {
+            try {
+                // Clean the expression
+                const cleanExpression = expression.trim();
+
+                // Render with KaTeX
+                const rendered = katex.renderToString(cleanExpression, {
+                    throwOnError: false,
+                    displayMode: false, // inline math
+                    output: 'html'
+                });
+
+                return `<span class="latex-inline">${rendered}</span>`;
+            } catch (error) {
+                console.warn('LaTeX rendering error:', error.message, 'for expression:', expression);
+                // Return original if rendering fails
+                return match;
+            }
+        });
+    }
+
+    processLatexInElement(element) {
+        if (!element) return;
+
+        // Find all text nodes and process them
+        const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode: function(node) {
+                    // Skip if parent is already a LaTeX element or script/style
+                    const parent = node.parentElement;
+                    if (parent && (
+                        parent.classList.contains('latex-inline') ||
+                        parent.tagName === 'SCRIPT' ||
+                        parent.tagName === 'STYLE'
+                    )) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            }
+        );
+
+        const textNodes = [];
+        let node;
+        while (node = walker.nextNode()) {
+            if (node.textContent.includes('`')) {
+                textNodes.push(node);
+            }
+        }
+
+        // Process each text node
+        textNodes.forEach(textNode => {
+            const processedHTML = this.processLatexInText(textNode.textContent);
+            if (processedHTML !== textNode.textContent) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = processedHTML;
+
+                // Replace text node with processed content
+                const parent = textNode.parentNode;
+                while (tempDiv.firstChild) {
+                    parent.insertBefore(tempDiv.firstChild, textNode);
+                }
+                parent.removeChild(textNode);
+            }
+        });
+    }
+
     // ==============================
     // BONUS FEATURES
     // ==============================
@@ -1438,6 +2327,365 @@ selectAnswer(answerIndex) {
         } catch (error) {
             this.hideLoading();
         }
+
+        // Updated quiz submission methods for dashboard.js
+    }
+
+    async submitQuiz() {
+        if (!this.currentQuiz) return;
+
+        try {
+            this.showLoading('Submitting quiz and validating answers...');
+
+            // Prepare answers in the format expected by API
+            const answers = [];
+            this.currentQuiz.questions.forEach((question, index) => {
+                if (this.userAnswers[index] !== null && this.userAnswers[index] !== undefined) {
+                    const answerData = {
+                        question_id: question.id
+                    };
+
+                    // Format answer based on question type
+                    switch (question.type) {
+                        case 'multiple-choice':
+                        case 'true-false':
+                            answerData.selected_option = this.userAnswers[index];
+                            break;
+
+                        case 'short-answer':
+                            answerData.answer_text = this.userAnswers[index];
+                            break;
+
+                        case 'fill-in-blank':
+                            answerData.fill_in_answers = Array.isArray(this.userAnswers[index])
+                                ? this.userAnswers[index]
+                                : [this.userAnswers[index]];
+                            break;
+                    }
+
+                    answers.push(answerData);
+                }
+            });
+
+            // Calculate time taken (you might track this)
+            const timeTaken = 0; // Implement time tracking if needed
+
+            const result = await this.apiCall(`/quizzes/${this.currentQuiz.id}/submit`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    answers,
+                    time_taken: timeTaken,
+                    use_llm_validation: true // Enable LLM validation
+                })
+            });
+
+            this.hideLoading();
+
+            // Show results with enhanced feedback
+            this.showEnhancedQuizResults(result);
+
+            // Refresh stats
+            this.refreshStats();
+
+        } catch (error) {
+            this.hideLoading();
+        }
+    }
+
+    showEnhancedQuizResults(result) {
+        const modal = document.getElementById('quizTakingModal');
+        const body = modal.querySelector('.modal-body');
+
+        // Store the original modal body HTML before showing results
+        if (!this.originalQuizModalBody) {
+            this.originalQuizModalBody = `
+                <div class="quiz-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <span class="progress-text" id="questionProgress">0 of 0</span>
+                </div>
+                <div class="quiz-container" id="quizContainer">
+                    <!-- Quiz questions will be loaded here -->
+                </div>
+                <div class="quiz-navigation">
+                    <button class="btn-secondary" id="prevQuestion" disabled>Previous</button>
+                    <button class="btn-primary" id="nextQuestion">Next</button>
+                    <button class="btn-primary" id="submitQuiz" style="display: none;">Submit Quiz</button>
+                </div>
+            `;
+        }
+
+        const isLLMValidated = result.validation_method === 'llm';
+        const hasDetailedFeedback = result.detailed_feedback && result.results;
+
+        let resultsHTML = `
+            <div class="quiz-results-container" style="text-align: center; padding: 20px;">
+                <div style="width: 80px; height: 80px; margin: 0 auto 20px; background: ${result.score >= 70 ? '#10b981' : '#ef4444'}; 
+                           border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+                    <i class="fas ${result.score >= 70 ? 'fa-check' : 'fa-times'}"></i>
+                </div>
+                <h2 style="margin-bottom: 16px;">Quiz Complete!</h2>
+                <div style="font-size: 48px; font-weight: bold; color: ${result.score >= 70 ? '#10b981' : '#ef4444'}; margin-bottom: 16px;">
+                    ${result.score}%
+                </div>
+                <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                    You got ${result.correct_answers} out of ${result.total_questions} questions correct.
+                </p>
+                
+                ${isLLMValidated ? `
+                    <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; margin-bottom: 20px;">
+                        <i class="fas fa-robot" style="color: #3b82f6; margin-right: 8px;"></i>
+                        <span style="color: var(--text-secondary); font-size: 14px;">
+                            Enhanced AI validation with detailed feedback
+                        </span>
+                    </div>
+                ` : ''}
+        `;
+
+        if (hasDetailedFeedback && result.results.length > 0) {
+            resultsHTML += `
+                <div style="max-height: 400px; overflow-y: auto; margin: 20px 0;">
+                    <h3 style="margin-bottom: 16px; text-align: center;">Detailed Feedback</h3>
+            `;
+
+            result.results.forEach((questionResult, index) => {
+                const question = this.currentQuiz.questions.find(q => q.id === questionResult.question_id);
+                if (!question) return;
+
+                const scoreColor = questionResult.score_percentage >= 100 ? '#10b981' :
+                                  questionResult.score_percentage >= 50 ? '#f59e0b' : '#ef4444';
+
+                resultsHTML += `
+                    <div class="feedback-item" style="margin-bottom: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border-left: 4px solid ${scoreColor};">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h4 style="margin: 0; flex: 1;">Question ${index + 1}</h4>
+                            <div style="background: ${scoreColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 14px; font-weight: bold;">
+                                ${questionResult.score_percentage || 0}%
+                            </div>
+                        </div>
+                        <p class="feedback-question" style="margin: 8px 0; color: var(--text-secondary); font-size: 14px;">
+                            ${question.text}
+                        </p>
+                        
+                        ${questionResult.feedback ? `
+                            <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px; margin-top: 8px;">
+                                <strong style="color: var(--text-primary);">Feedback:</strong>
+                                <p class="feedback-text" style="margin: 4px 0 0 0; color: var(--text-secondary);">
+                                    ${questionResult.feedback}
+                                </p>
+                            </div>
+                        ` : ''}
+                        
+                        ${questionResult.partial_credit_details ? `
+                            <div style="background: #fef3c7; padding: 8px; border-radius: 6px; margin-top: 8px; border: 1px solid #f59e0b;">
+                                <small class="partial-credit" style="color: #92400e;">
+                                    <i class="fas fa-info-circle"></i> ${questionResult.partial_credit_details}
+                                </small>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            resultsHTML += `</div>`;
+        }
+
+        resultsHTML += `
+                    <div style="display: flex; gap: 16px; justify-content: center; padding: 20px;">
+                        <button class="btn-primary" onclick="dashboard.retakeQuiz()">
+                            <i class="fas fa-redo"></i> Retake Quiz
+                        </button>
+                        ${result.attempt_id ? `
+                            <button class="btn-secondary" onclick="dashboard.revalidateQuiz(${result.attempt_id})">
+                                <i class="fas fa-robot"></i> Re-validate with AI
+                            </button>
+                        ` : ''}
+                        ${hasDetailedFeedback ? `
+                            <button class="btn-secondary" onclick="dashboard.downloadDetailedResults(${result.attempt_id || 'null'})">
+                                <i class="fas fa-download"></i> Download Results
+                            </button>
+                        ` : ''}
+                        <button class="btn-secondary" onclick="dashboard.closeQuizModal()">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            `;
+
+        body.innerHTML = resultsHTML;
+
+        // Process LaTeX in all the feedback content
+        if (this.processLatexInElement) {
+            this.processLatexInElement(body);
+        }
+    }
+
+    async revalidateQuiz(attemptId) {
+        if (!attemptId) {
+            this.showNotification('Cannot re-validate: attempt ID not found', 'warning');
+            return;
+        }
+
+        try {
+            this.showLoading('Re-validating answers with enhanced AI...');
+
+            const result = await this.apiCall(`/quiz-attempts/${attemptId}/revalidate`, {
+                method: 'POST'
+            });
+
+            this.hideLoading();
+
+            // Show revalidation results
+            this.showRevalidationResults(result);
+
+        } catch (error) {
+            this.hideLoading();
+            this.showNotification('Failed to re-validate quiz', 'error');
+        }
+    }
+
+    showRevalidationResults(result) {
+        const modal = document.getElementById('quizTakingModal');
+        const body = modal.querySelector('.modal-body');
+
+        const scoreDifference = result.new_score - result.old_score;
+        const scoreColor = scoreDifference > 0 ? '#10b981' : scoreDifference < 0 ? '#ef4444' : '#6b7280';
+
+        body.innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+                <div style="width: 80px; height: 80px; margin: 0 auto 20px; background: #3b82f6; 
+                           border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <h2 style="margin-bottom: 16px;">AI Re-validation Complete!</h2>
+                
+                <div style="display: flex; justify-content: center; gap: 32px; margin: 32px 0;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">Original Score</div>
+                        <div style="font-size: 32px; font-weight: bold; color: var(--text-primary);">
+                            ${result.old_score}%
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; color: ${scoreColor};">
+                        <i class="fas fa-arrow-right" style="font-size: 24px;"></i>
+                    </div>
+                    
+                    <div style="text-align: center;">
+                        <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">New Score</div>
+                        <div style="font-size: 32px; font-weight: bold; color: ${scoreColor};">
+                            ${result.new_score}%
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin: 24px 0;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+                        <i class="fas ${scoreDifference > 0 ? 'fa-arrow-up' : scoreDifference < 0 ? 'fa-arrow-down' : 'fa-equals'}" 
+                           style="color: ${scoreColor};"></i>
+                        <span style="color: ${scoreColor}; font-weight: bold;">
+                            ${scoreDifference > 0 ? '+' : ''}${scoreDifference.toFixed(1)} points
+                        </span>
+                    </div>
+                    <p style="color: var(--text-secondary); margin: 0; font-size: 14px;">
+                        ${scoreDifference > 0 ? 'Your score improved with AI validation!' : 
+                          scoreDifference < 0 ? 'AI validation resulted in a lower score.' : 
+                          'Your score remained the same.'}
+                    </p>
+                </div>
+    
+                <div style="display: flex; gap: 16px; justify-content: center;">
+                    <button class="btn-primary" onclick="dashboard.showEnhancedQuizResults(${JSON.stringify(result.validation_results).replace(/"/g, '&quot;')})">
+                        <i class="fas fa-eye"></i> View Detailed Results
+                    </button>
+                    <button class="btn-secondary" onclick="dashboard.closeQuizModal()">
+                        Close
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    async downloadDetailedResults(attemptId) {
+        if (!attemptId) {
+            this.showNotification('Cannot download: attempt ID not found', 'warning');
+            return;
+        }
+
+        try {
+            this.showLoading('Generating detailed results...');
+
+            // Get the attempt details
+            const attempt = await this.apiCall(`/quiz-attempts/${attemptId}`);
+
+            if (!attempt.validation_results) {
+                this.showNotification('No detailed results available', 'warning');
+                this.hideLoading();
+                return;
+            }
+
+            // Create downloadable content
+            let content = `QUIZ RESULTS - DETAILED FEEDBACK\n`;
+            content += `=====================================\n\n`;
+            content += `Quiz: ${this.currentQuiz.title}\n`;
+            content += `Date: ${new Date(attempt.submitted_at).toLocaleDateString()}\n`;
+            content += `Overall Score: ${attempt.validation_results.overall_score}%\n`;
+            content += `Validation Method: Enhanced AI\n\n`;
+
+            if (attempt.validation_results.validation_results) {
+                attempt.validation_results.validation_results.forEach((result, index) => {
+                    const question = this.currentQuiz.questions.find(q => q.id === result.question_id);
+                    if (!question) return;
+
+                    content += `QUESTION ${index + 1}\n`;
+                    content += `-----------\n`;
+                    content += `${question.text}\n\n`;
+                    content += `Your Answer: ${result.student_answer}\n`;
+                    content += `Score: ${result.score_percentage}%\n`;
+                    content += `Status: ${result.is_correct ? 'Correct' : 'Incorrect'}\n\n`;
+
+                    if (result.feedback) {
+                        content += `Feedback:\n${result.feedback}\n\n`;
+                    }
+
+                    if (result.partial_credit_details) {
+                        content += `Partial Credit: ${result.partial_credit_details}\n\n`;
+                    }
+
+                    content += `\n`;
+                });
+            }
+
+            // Download the file
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${this.currentQuiz.title.replace(/\s+/g, '_')}_detailed_results.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            this.hideLoading();
+            this.showNotification('Detailed results downloaded!', 'success');
+
+        } catch (error) {
+            this.hideLoading();
+            this.showNotification('Failed to download results', 'error');
+        }
+    }
+
+    // Add a new endpoint to get quiz attempt details
+    async getQuizAttempt(attemptId) {
+        try {
+            const attempt = await this.apiCall(`/quiz-attempts/${attemptId}`);
+            return attempt;
+        } catch (error) {
+            this.showNotification('Failed to get quiz attempt details', 'error');
+            return null;
+        }
     }
 
     // Render selected files (file upload preview)
@@ -1455,6 +2703,28 @@ selectAnswer(answerIndex) {
             fileItem.setAttribute('data-selected', 'true');
             fileList.appendChild(fileItem);
         });
+    }
+
+    diagnoseQuizIssue() {
+        console.log('=== QUIZ DIAGNOSTIC ===');
+        console.log('Current Quiz:', this.currentQuiz);
+        console.log('Current Question Index:', this.currentQuestionIndex);
+        console.log('User Answers:', this.userAnswers);
+
+        const modal = document.getElementById('quizTakingModal');
+        const body = modal?.querySelector('.modal-body');
+        console.log('Modal Body HTML:', body?.innerHTML?.substring(0, 200) + '...');
+
+        const container = document.getElementById('quizContainer');
+        console.log('Quiz Container HTML:', container?.innerHTML?.substring(0, 200) + '...');
+
+        console.log('Modal is active:', modal?.classList.contains('active'));
+
+        // Check if there are any results showing
+        const resultsContainer = body?.querySelector('.quiz-results-container');
+        console.log('Results container found:', !!resultsContainer);
+
+        console.log('=== END DIAGNOSTIC ===');
     }
 }
 
