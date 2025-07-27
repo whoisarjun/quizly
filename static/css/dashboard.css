@@ -718,6 +718,7 @@ nav {
 }
 
 .tab-btn {
+    position: relative;
     background: transparent;
     border: none;
     color: var(--text-secondary);
@@ -734,8 +735,18 @@ nav {
     border-bottom-color: var(--accent);
 }
 
+.tab-btn.disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
 .tab-btn:hover {
     color: var(--text-primary);
+}
+
+.tab-btn.disabled:hover {
+    color: var(--text-muted);
 }
 
 .tab-content {
@@ -745,6 +756,40 @@ nav {
 .tab-content.active {
     display: block;
     animation: fadeIn 0.3s ease;
+}
+
+.tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 1000;
+    margin-bottom: 8px;
+}
+
+.tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--bg-tertiary);
+}
+
+.tab-btn.disabled:hover .tooltip {
+    opacity: 1;
+    visibility: visible;
 }
 
 /* Upload Section in Modal */

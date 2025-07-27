@@ -140,6 +140,19 @@ class Dashboard {
         }
     }
 
+    updateQuizzesTabState() {
+        const quizzesTabBtn = document.getElementById('quizzesTabBtn');
+        const hasFiles = this.currentProject && this.currentProject.files && this.currentProject.files.length > 0;
+
+        if (quizzesTabBtn) {
+            if (hasFiles) {
+                quizzesTabBtn.classList.remove('disabled');
+            } else {
+                quizzesTabBtn.classList.add('disabled');
+            }
+        }
+    }
+
     // ==============================
     // PROJECT METHODS
     // ==============================
@@ -200,11 +213,11 @@ class Dashboard {
             // Show modal and switch to files tab
             document.getElementById('projectModal').classList.add('active');
             this.switchTab('files');
+            this.updateQuizzesTabState();
             document.getElementById('quizTitle').value = `${project.name} Quiz`;
 
             // Render project content
-            this.renderProjectFiles();
-            this.renderProjectQuizzes();
+            this.updateQuizzesTabState();
 
             this.hideLoading();
 
@@ -322,6 +335,8 @@ class Dashboard {
         } catch (error) {
             this.hideLoading();
         }
+
+        this.updateQuizzesTabState();
     }
 
     async refreshCurrentProject() {
@@ -419,6 +434,8 @@ class Dashboard {
         } catch (error) {
             // Error already handled
         }
+
+        this.updateQuizzesTabState();
     }
 
     renderProjectFiles() {
@@ -1214,24 +1231,32 @@ class Dashboard {
     // ==============================
 
     switchTab(tabName) {
-        // Update tab buttons
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        const targetTab = document.querySelector(`[data-tab="${tabName}"]`);
-        if (targetTab) {
-            targetTab.classList.add('active');
-        }
-
-        // Update tab content
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.remove('active');
-        });
-        const targetContent = document.getElementById(`${tabName}Tab`);
-        if (targetContent) {
-            targetContent.classList.add('active');
+    // Check if trying to switch to disabled quizzes tab
+    if (tabName === 'quizzes') {
+        const quizzesTabBtn = document.getElementById('quizzesTabBtn');
+        if (quizzesTabBtn && quizzesTabBtn.classList.contains('disabled')) {
+            return; // Don't switch
         }
     }
+
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const targetTab = document.querySelector(`[data-tab="${tabName}"]`);
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
+
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    const targetContent = document.getElementById(`${tabName}Tab`);
+    if (targetContent) {
+        targetContent.classList.add('active');
+    }
+}
 
     renderCurrentQuestion() {
         if (!this.currentQuiz) return;
@@ -2383,67 +2408,6 @@ class Dashboard {
         }
 
         // Updated quiz submission methods for dashboard.js
-    }
-
-    async submitQuiz() {
-        if (!this.currentQuiz) return;
-
-        try {
-            this.showLoading('Submitting quiz and validating answers...');
-
-            // Prepare answers in the format expected by API
-            const answers = [];
-            this.currentQuiz.questions.forEach((question, index) => {
-                if (this.userAnswers[index] !== null && this.userAnswers[index] !== undefined) {
-                    const answerData = {
-                        question_id: question.id
-                    };
-
-                    // Format answer based on question type
-                    switch (question.type) {
-                        case 'multiple-choice':
-                        case 'true-false':
-                            answerData.selected_option = this.userAnswers[index];
-                            break;
-
-                        case 'short-answer':
-                            answerData.answer_text = this.userAnswers[index];
-                            break;
-
-                        case 'fill-in-blank':
-                            answerData.fill_in_answers = Array.isArray(this.userAnswers[index])
-                                ? this.userAnswers[index]
-                                : [this.userAnswers[index]];
-                            break;
-                    }
-
-                    answers.push(answerData);
-                }
-            });
-
-            // Calculate time taken (you might track this)
-            const timeTaken = 0; // Implement time tracking if needed
-
-            const result = await this.apiCall(`/quizzes/${this.currentQuiz.id}/submit`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    answers,
-                    time_taken: timeTaken,
-                    use_llm_validation: true // Enable LLM validation
-                })
-            });
-
-            this.hideLoading();
-
-            // Show results with enhanced feedback
-            this.showEnhancedQuizResults(result);
-
-            // Refresh stats
-            this.refreshStats();
-
-        } catch (error) {
-            this.hideLoading();
-        }
     }
 
     showEnhancedQuizResults(result) {
