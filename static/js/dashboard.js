@@ -178,7 +178,7 @@ class Dashboard {
             });
 
             // Add to local projects array
-            this.projects.push(newProject);
+            this.projects.unshift(newProject);
             this.renderProjects();
 
             // Close modal and reset form

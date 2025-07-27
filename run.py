@@ -30,7 +30,7 @@ answer_validator = chatbot.AnswerValidator()
 # TO-DO LIST
 # ==============================
 
-# TODO: Delete quizzes
+# TODO: Project settings editing
 
 # ==============================
 # UTILITY FUNCTIONS
@@ -47,11 +47,9 @@ def require_auth(f):
 
     return decorated_function
 
-
 def get_current_user_id():
     """Get current user ID from session"""
     return session.get('user_id')
-
 
 def handle_error(e, message="An error occurred"):
     """Standard error handler"""
@@ -63,7 +61,6 @@ def handle_error(e, message="An error occurred"):
             'timestamp': datetime.now().isoformat()
         }
     }), 500
-
 
 # ==============================
 # PAGE ROUTES (Your original routes)
@@ -290,6 +287,105 @@ def get_project(project_id):
     except Exception as e:
         return handle_error(e, "Failed to get project")
 
+@app.route('/api/projects/<int:project_id>', methods=['PUT'])
+@require_auth
+def update_project_api(project_id):
+    """Update project details"""
+    try:
+        user_id = get_current_user_id()
+
+        if not db_utils.verify_project_ownership(project_id, user_id):
+            return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}}), 403
+
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+
+        if not name:
+            return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': 'Project name is required'}}), 400
+
+        # Update project using your existing function
+        success = projects_db.update_project(project_id, user_id, name=name, description=description)
+
+        if not success:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Project not found or no changes made'}}), 404
+
+        # Return updated project data
+        updated_project = projects_db.get_project_by_id(project_id, user_id)
+
+        return jsonify(updated_project)
+
+    except Exception as e:
+        return handle_error(e, "Failed to update project")
+
+
+@app.route('/api/projects/<int:project_id>', methods=['DELETE'])
+@require_auth
+def delete_project_api(project_id):
+    """Delete a project and all its associated data"""
+    try:
+        user_id = get_current_user_id()
+
+        # Verify ownership using your existing function
+        if not db_utils.verify_project_ownership(project_id, user_id):
+            return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}}), 403
+
+        # Get project info before deletion
+        project = projects_db.get_project_by_id(project_id, user_id)
+        if not project:
+            return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Project not found'}}), 404
+
+        # Get all files associated with this project for cleanup
+        project_files = files_db.get_project_files(project_id)
+
+        # Delete physical files from disk
+        deleted_files = []
+        failed_file_deletions = []
+
+        for file_info in project_files:
+            try:
+                file_path = file_info.get('file_path')
+                if file_path and os.path.exists(file_path):
+                    os.remove(file_path)
+                    deleted_files.append(file_path)
+                    print(f"✅ Deleted file: {file_path}")
+            except Exception as file_error:
+                failed_file_deletions.append({
+                    'file': file_info.get('original_filename', 'unknown'),
+                    'error': str(file_error)
+                })
+                print(f"⚠️ Could not delete file: {file_error}")
+
+        # Delete project directory if it exists and is empty
+        project_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(project_id))
+        try:
+            if os.path.exists(project_dir):
+                if not os.listdir(project_dir):  # Check if directory is empty
+                    os.rmdir(project_dir)
+                    print(f"✅ Deleted project directory: {project_dir}")
+        except Exception as dir_error:
+            print(f"⚠️ Could not delete project directory: {dir_error}")
+
+        # Delete from database (your existing function handles CASCADE)
+        success = projects_db.delete_project(project_id, user_id)
+
+        if not success:
+            return jsonify(
+                {'error': {'code': 'DATABASE_ERROR', 'message': 'Failed to delete project from database'}}), 500
+
+        return jsonify({
+            'message': 'Project deleted successfully',
+            'project_id': project_id,
+            'project_name': project.get('name', 'Unknown'),
+            'cleanup_summary': {
+                'files_deleted': len(deleted_files),
+                'files_failed': len(failed_file_deletions),
+                'failed_deletions': failed_file_deletions if failed_file_deletions else None
+            }
+        })
+
+    except Exception as e:
+        return handle_error(e, "Failed to delete project")
 
 # ==============================
 # FILE ENDPOINTS
