@@ -1,4 +1,4 @@
-// Form switching
+// sign IN -> sign UP
 function switchToSignUp() {
     document.getElementById('signInForm').classList.add('hidden');
     document.getElementById('signUpForm').classList.remove('hidden');
@@ -7,15 +7,15 @@ function switchToSignUp() {
     validateSignUpForm();
 }
 
+// sign UP -> sign IN
 function switchToSignIn() {
     document.getElementById('signUpForm').classList.add('hidden');
     document.getElementById('signInForm').classList.remove('hidden');
     document.title = 'Quizly - Sign In';
-    // Reset validation when switching
     validateSignInForm();
 }
 
-// Password toggle
+// password view toggle
 function togglePassword(inputId) {
     const input = document.getElementById(inputId);
     const icon = input.parentElement.querySelector('.password-toggle i');
@@ -31,7 +31,7 @@ function togglePassword(inputId) {
     }
 }
 
-// Password strength checker
+// password strength checker
 document.getElementById('signUpPassword').addEventListener('input', function() {
     const password = this.value;
     const strengthBar = document.querySelector('.strength-fill');
@@ -66,11 +66,11 @@ document.getElementById('signUpPassword').addEventListener('input', function() {
     strengthText.textContent = text;
 });
 
-// Get form elements
+// form elements
 const signInForm = document.getElementById('signInFormElement');
 const signUpForm = document.getElementById('signUpFormElement');
 
-// Sign In Form Validation
+// sign IN form val
 function validateSignInForm() {
     const email = document.getElementById('signInEmail').value.trim();
     const password = document.getElementById('signInPassword').value.trim();
@@ -85,7 +85,7 @@ function validateSignInForm() {
     return isValid;
 }
 
-// Sign Up Form Validation
+// sign UP form val
 function validateSignUpForm() {
     const firstName = document.getElementById('firstName').value.trim();
     const lastName = document.getElementById('lastName').value.trim();
@@ -95,10 +95,10 @@ function validateSignUpForm() {
     const agreeTerms = document.getElementById('agreeTerms').checked;
     const submitBtn = signUpForm.querySelector('.auth-btn');
 
-    // Check if passwords match
+    // check if passwords match
     const passwordsMatch = password && confirmPassword && password === confirmPassword;
 
-    // Show/hide password mismatch error
+    // toggle password mismatch error
     const errorElement = document.getElementById('confirmPasswordError');
     if (confirmPassword && !passwordsMatch) {
         errorElement.style.display = 'block';
@@ -106,7 +106,7 @@ function validateSignUpForm() {
         errorElement.style.display = 'none';
     }
 
-    // Check if all fields are filled and valid
+    // check if all fields are filled and valid
     const isValid = firstName && lastName && email && password && confirmPassword && passwordsMatch && agreeTerms;
 
     submitBtn.disabled = !isValid;
@@ -116,11 +116,11 @@ function validateSignUpForm() {
     return isValid;
 }
 
-// Add event listeners for Sign In form
+// event listeners for sign IN
 document.getElementById('signInEmail').addEventListener('input', validateSignInForm);
 document.getElementById('signInPassword').addEventListener('input', validateSignInForm);
 
-// Add event listeners for Sign Up form
+// event listeners for sign UP
 document.getElementById('firstName').addEventListener('input', validateSignUpForm);
 document.getElementById('lastName').addEventListener('input', validateSignUpForm);
 document.getElementById('signUpEmail').addEventListener('input', validateSignUpForm);
@@ -128,7 +128,7 @@ document.getElementById('signUpPassword').addEventListener('input', validateSign
 document.getElementById('confirmPassword').addEventListener('input', validateSignUpForm);
 document.getElementById('agreeTerms').addEventListener('change', validateSignUpForm);
 
-// Sign In Form Submission
+// sign IN Form Submission
 signInForm.addEventListener('submit', function(e) {
     e.preventDefault();
 
@@ -150,14 +150,13 @@ signInForm.addEventListener('submit', function(e) {
     .then(response => response.json())
     .then(data => {
         console.log('Sign in response:', data);
-        // Handle success/error accordingly
     })
     .catch(error => {
         console.error('Sign in error:', error);
     });
 });
 
-// Sign Up Form Submission
+// sign UP form submission
 signUpForm.addEventListener('submit', function(e) {
     e.preventDefault();
 
@@ -193,7 +192,7 @@ signUpForm.addEventListener('submit', function(e) {
     });
 });
 
-// Initialize validation on page load
+// init validation on page load
 document.addEventListener('DOMContentLoaded', function() {
     validateSignInForm();
     validateSignUpForm();

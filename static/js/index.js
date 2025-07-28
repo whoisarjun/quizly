@@ -10,14 +10,14 @@ let selectedFiles = [];
 const maxFiles = 5;
 const maxSize = 10 * 1024 * 1024; // 10MB
 
-// Click handlers
+// click handlers
 uploadBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     fileInput.click();
 });
 uploadZone.addEventListener('click', () => fileInput.click());
 
-// Drag and drop handlers
+// drag and drop handlers
 uploadZone.addEventListener('dragover', (e) => {
     e.preventDefault();
     uploadZone.classList.add('drag-over');
@@ -37,6 +37,7 @@ fileInput.addEventListener('change', (e) => {
     handleFiles(e.target.files);
 });
 
+// file size/count managers
 function handleFiles(files) {
     for (let file of files) {
         if (selectedFiles.length >= maxFiles) {
@@ -60,6 +61,7 @@ function handleFiles(files) {
     updateGenerateButton();
 }
 
+// update file list
 function updateFileList() {
     fileList.innerHTML = '';
 
@@ -89,18 +91,21 @@ function updateFileList() {
     });
 }
 
+// remove file
 function removeFile(index) {
     selectedFiles.splice(index, 1);
     updateFileList();
     updateGenerateButton();
 }
 
+// toggle gen button
 function updateGenerateButton() {
     if (selectedFiles.length > 0) {
         generateBtn.classList.add('active');
     }
 }
 
+// file icon from extension
 function getFileIcon(fileType) {
     if (fileType.includes('pdf')) return 'fas fa-file-pdf';
     if (fileType.includes('image')) return 'fas fa-image';
@@ -110,6 +115,7 @@ function getFileIcon(fileType) {
     return 'fas fa-file';
 }
 
+// file size formatter
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -118,7 +124,7 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// Smooth scrolling for navigation links
+// smooth scrolling for navigation links
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
         e.preventDefault();
@@ -131,42 +137,3 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         }
     });
 });
-
-// Send files to backend
-// generateBtn.addEventListener('click', async () => {
-//     if (selectedFiles.length === 0) {
-//         alert("You need to add files first!");
-//         return;
-//     }
-//     processing.style.display = 'block';
-//
-//     // Prepare FormData
-//     const formData = new FormData();
-//     selectedFiles.forEach((file, idx) => {
-//         formData.append('files', file); // 'files' is the key for all files
-//     });
-//
-//     try {
-//         const response = await fetch('/generate', {
-//             method: 'POST',
-//             body: formData,
-//         });
-//
-//         if (!response.ok) {
-//             throw new Error('Network response was not ok');
-//         }
-//
-//         const data = await response.json();
-//         console.log('Response:', data);
-//
-//         // handle success (e.g., show generated quiz or message)
-//     } catch (error) {
-//         console.error('Error:', error);
-//         alert('Failed to generate quiz.');
-//     } finally {
-//         processing.style.display = 'none';
-//         uploadBtn.disabled = false;
-//         fileInput.disabled = false;
-//         uploadZone.style.pointerEvents = 'auto';
-//     }
-// });
