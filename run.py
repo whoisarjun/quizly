@@ -24,7 +24,7 @@ CORS(app)
 # all inits
 db_init.init_all_tables()
 ph = PasswordHasher()
-chatbot.set_model('o4-mini')
+chatbot.set_model('gpt-4.1')
 answer_validator = chatbot.AnswerValidator()
 
 # ==============================
@@ -1150,4 +1150,4 @@ if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs('temp', exist_ok=True)
 
-    app.run(debug=True, host='0.0.0.0', port=6900)
+    app.run(debug=True, host='0.0.0.0', port=6767)
