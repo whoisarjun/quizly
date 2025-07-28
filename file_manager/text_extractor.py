@@ -1,5 +1,6 @@
 import pymupdf
 
+# multiple pdfs -> plaintext
 def generate_plaintext(file_paths: list[str]) -> str:
     combined_text = []
     for path in file_paths:
@@ -10,6 +11,7 @@ def generate_plaintext(file_paths: list[str]) -> str:
             continue
     return "\n\n".join(combined_text)
 
+# pdf -> text
 def extract_pdf(file_path: str) -> str:
     text = []
     with pymupdf.open(file_path) as doc:

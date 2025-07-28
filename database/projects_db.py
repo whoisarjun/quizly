@@ -15,6 +15,7 @@ def get_conn():
         password=os.getenv("PG_PASSWORD")
     )
 
+# init
 def create_projects_table():
     conn = get_conn()
     cur = conn.cursor()
@@ -35,6 +36,7 @@ def create_projects_table():
     conn.close()
     print("✅ projects table created (or already existed).")
 
+# create new project
 def create_new_project(user_id, name, description=""):
     conn = get_conn()
     cur = conn.cursor()
@@ -59,6 +61,7 @@ def create_new_project(user_id, name, description=""):
         'quiz_count': 0
     }
 
+# all projects belonging to a user
 def get_user_projects(user_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -97,6 +100,7 @@ def get_user_projects(user_id):
     conn.close()
     return projects
 
+# get project
 def get_project_by_id(project_id, user_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -123,6 +127,7 @@ def get_project_by_id(project_id, user_id):
         'updated_at': result[5]
     }
 
+# update project details
 def update_project(project_id, user_id, name=None, description=None):
     conn = get_conn()
     cur = conn.cursor()
@@ -163,11 +168,11 @@ def update_project(project_id, user_id, name=None, description=None):
 
     return updated
 
+# delete project
 def delete_project(project_id, user_id):
     conn = get_conn()
     cur = conn.cursor()
 
-    # First get project name for logging
     cur.execute("SELECT name FROM projects WHERE id = %s AND user_id = %s", (project_id, user_id))
     result = cur.fetchone()
 
@@ -178,7 +183,6 @@ def delete_project(project_id, user_id):
 
     project_name = result[0]
 
-    # Delete project (CASCADE will handle related records)
     cur.execute("DELETE FROM projects WHERE id = %s AND user_id = %s", (project_id, user_id))
     deleted = cur.rowcount > 0
     conn.commit()
@@ -190,6 +194,7 @@ def delete_project(project_id, user_id):
 
     return deleted
 
+# get all project stats for a user
 def get_project_stats(user_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -213,6 +218,7 @@ def get_project_stats(user_id):
         'avg_score': int(result[2]) if result and result[2] else 0
     }
 
+# search projects
 def search_projects(user_id, query):
     conn = get_conn()
     cur = conn.cursor()

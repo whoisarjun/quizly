@@ -11,10 +11,12 @@ client = OpenAI()
 
 model = 'gpt-4.1-mini'
 
+# set gpt model
 def set_model(m):
     global model
     model = m
 
+# send a prompt
 def ask(prompt):
     response = client.responses.create(
         model=model,
@@ -22,6 +24,7 @@ def ask(prompt):
     )
     return response.output_text
 
+# quiz prompt
 def generate_quiz_prompt(content, specifications):
     difficulty_instructions = {
         'easy': (
@@ -83,27 +86,13 @@ Now generate the quiz based on the following content:
 \"\"\"
 """)
 
-
+# generate a comprehensive answer validation
 def generate_answer_validation_prompt(
         file_content: str,
         questions: List[Dict],
         student_answers: List[Dict],
         specifications: Optional[Dict] = None
 ) -> str:
-    """
-    Generate a comprehensive answer validation using LLM
-
-    Args:
-        file_content: Extracted text from course materials
-        questions: List of questions with expected answers
-        student_answers: List of student responses to validate
-        specifications: Additional validation parameters
-
-    Returns:
-        JSON string with validation results
-    """
-
-    # Prepare context about each question type for the LLM
     question_type_guidance = {
         'multiple-choice': "For multiple choice, verify the selected option index matches the correct answer based on course materials.",
         'true-false': "For true/false, determine if the statement is factually correct according to the course materials.",
@@ -111,7 +100,6 @@ def generate_answer_validation_prompt(
         'fill-in-blank': "For fill-in-the-blank, validate each blank based on the context and course materials. Consider synonyms and equivalent terms."
     }
 
-    # Create detailed question context
     questions_context = []
     for q in questions:
         q_context = {
@@ -130,7 +118,7 @@ def generate_answer_validation_prompt(
 
         questions_context.append(q_context)
 
-    # Create the validation prompt
+    # validation prompt
     prompt = f"""
 You are an expert educational assessment AI with advanced understanding of pedagogy and fair grading practices. Your task is to validate student quiz answers against authoritative course materials.
 
@@ -201,27 +189,19 @@ CRITICAL: Respond with ONLY the JSON object. No additional text, explanations, o
 
     return prompt
 
-
+# validate answers
 def validate_quiz_answers_with_llm(
         file_content: str,
         questions: List[Dict],
         student_answers: List[Dict],
 ) -> Dict[str, Any]:
-    """
-    Main function to validate answers using LLM
-
-    Returns structured validation results
-    """
     try:
-        # Generate the validation prompt
         validation_prompt = generate_answer_validation_prompt(
             file_content, questions, student_answers
         )
 
-        # Get LLM response (replace with your actual LLM call)
         llm_response = ask(validation_prompt)
 
-        # Parse and validate the response
         validation_results = parse_and_validate_response(llm_response)
 
         return validation_results
@@ -238,13 +218,9 @@ def validate_quiz_answers_with_llm(
             "error": True
         }
 
-
+# parse and validate json structure of response
 def parse_and_validate_response(llm_response: str) -> Dict[str, Any]:
-    """
-    Parse LLM response and validate the JSON structure
-    """
     try:
-        # Extract JSON from response (handle cases where LLM adds extra text)
         json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
         if not json_match:
             raise ValueError("No JSON found in LLM response")
@@ -252,13 +228,11 @@ def parse_and_validate_response(llm_response: str) -> Dict[str, Any]:
         json_str = json_match.group(0)
         validation_data = json.loads(json_str)
 
-        # Validate required fields
         required_fields = ['validation_results', 'overall_score', 'total_questions', 'correct_answers']
         for field in required_fields:
             if field not in validation_data:
                 raise ValueError(f"Missing required field: {field}")
 
-        # Validate each validation result
         for result in validation_data['validation_results']:
             required_result_fields = ['question_id', 'question_type', 'is_correct', 'score_percentage', 'feedback']
             for field in required_result_fields:
@@ -274,9 +248,8 @@ def parse_and_validate_response(llm_response: str) -> Dict[str, Any]:
         print(f"Validation parsing error: {e}")
         return create_error_response(str(e))
 
-
+# get default values for missing fields
 def get_default_value(field: str) -> Any:
-    """Get default values for missing fields"""
     defaults = {
         'question_id': 0,
         'question_type': 'unknown',
@@ -291,9 +264,8 @@ def get_default_value(field: str) -> Any:
     }
     return defaults.get(field, '')
 
-
+# create standardized error msg
 def create_error_response(error_message: str) -> Dict[str, Any]:
-    """Create a standardized error response"""
     return {
         "validation_results": [],
         "overall_score": 0,
@@ -305,15 +277,10 @@ def create_error_response(error_message: str) -> Dict[str, Any]:
         "error_message": error_message
     }
 
+# === additional utility functions for enhanced validation ===
 
-# Additional utility functions for enhanced validation
-
+# calculate semantic similarity between two answers
 def calculate_semantic_similarity(answer1: str, answer2: str) -> float:
-    """
-    Calculate semantic similarity between two answers
-    This is a placeholder - you might want to use sentence transformers or similar
-    """
-    # Simple word overlap similarity (replace with proper semantic similarity)
     words1 = set(answer1.lower().split())
     words2 = set(answer2.lower().split())
 
@@ -325,32 +292,22 @@ def calculate_semantic_similarity(answer1: str, answer2: str) -> float:
 
     return len(intersection) / len(union) if union else 0.0
 
-
+# extract key concepts from student answers that appear in course materials
 def extract_key_concepts(text: str, course_materials: str) -> List[str]:
-    """
-    Extract key concepts from student answer that appear in course materials
-    """
-    # This is a simplified version - you might want to use NLP techniques
     text_words = set(text.lower().split())
     material_words = set(course_materials.lower().split())
 
-    # Find important words (longer than 3 characters that appear in both)
     key_concepts = []
     for word in text_words:
         if len(word) > 3 and word in material_words:
             key_concepts.append(word)
 
-    return key_concepts[:5]  # Return top 5 concepts
+    return key_concepts[:5]
 
+# LLM based answer validation
 class AnswerValidator:
-    """
-    LLM-based answer validation system that can handle:
-    - Multiple choice (verification)
-    - True/False (verification)
-    - Short answer (semantic matching)
-    - Fill-in-the-blank (contextual validation)
-    """
 
+    # init with prompt
     def __init__(self):
         self.validation_prompt_template = """
 You are an expert educator and grader. Your task is to validate student answers against quiz questions based ONLY on the provided course materials. You will be chatting directly to the student, so comments must speak directly to the student using 2nd pronouns.
@@ -397,32 +354,19 @@ Return a pure JSON object with this exact structure (ensure it is EXACTLY this s
 Validate the answers now:
 """
 
+    # main val function
     def validate_quiz_answers(
             self,
             project_files: List[Dict],
             questions: List[Dict],
             student_answers: List[Dict]
     ) -> Dict[str, Any]:
-        """
-        Main validation function that processes all answers using LLM
-
-        Args:
-            project_files: List of file objects with file_path
-            questions: List of question objects with expected answers
-            student_answers: List of student answer objects
-
-        Returns:
-            Dictionary with validation results
-        """
         try:
-            # Extract text content from project files
             file_paths = [file['file_path'] for file in project_files]
             file_content = generate_plaintext(file_paths)
 
-            # Format questions with expected answers
             questions_for_validation = self._format_questions_for_validation(questions)
 
-            # Format student answers
             student_answers_formatted = self._format_student_answers(student_answers)
 
             validation_results = validate_quiz_answers_with_llm(
@@ -431,24 +375,20 @@ Validate the answers now:
                 student_answers=student_answers_formatted
             )
 
-            # Add additional processing if needed
             validation_results = self._enhance_validation_results(validation_results, questions, student_answers)
 
             return validation_results
 
         except Exception as e:
             print(f"Error in answer validation: {e}")
-            # Fallback to basic validation
             return self._fallback_validation(questions, student_answers)
 
+    # additional processing
     def _enhance_validation_results(self, validation_results: Dict, questions: List[Dict],
                                     student_answers: List[Dict]) -> Dict:
-        """Add any additional processing to validation results"""
         try:
-            # Add timestamp
             validation_results['validated_at'] = datetime.now().isoformat()
 
-            # Add question types summary
             question_types = {}
             for question in questions:
                 q_type = question.get('type', 'unknown')
@@ -456,7 +396,6 @@ Validate the answers now:
 
             validation_results['question_types_summary'] = question_types
 
-            # Add performance metrics
             if validation_results.get('validation_results'):
                 scores = [result.get('score_percentage', 0) for result in validation_results['validation_results']]
                 validation_results['performance_metrics'] = {
@@ -472,8 +411,8 @@ Validate the answers now:
             print(f"Error enhancing validation results: {e}")
             return validation_results
 
+    # format questions with expected answers
     def _format_questions_for_validation(self, questions: List[Dict]) -> List[Dict]:
-        """Format questions with expected answers for LLM validation"""
         formatted_questions = []
 
         for question in questions:
@@ -485,11 +424,8 @@ Validate the answers now:
                 "options": question.get('options', None)
             }
 
-            # Add expected answer based on question type
-            # Add expected answer based on question type
             if question['type'] == 'multiple-choice':
                 correct_index = question.get('correct_answer', 0)
-                # Ensure correct_index is an integer
                 if isinstance(correct_index, str) and correct_index.isdigit():
                     correct_index = int(correct_index)
                 elif not isinstance(correct_index, int):
@@ -506,7 +442,6 @@ Validate the answers now:
 
             elif question['type'] == 'true-false':
                 correct_answer = question.get('correct_answer', 0)
-                # Ensure correct_answer is an integer
                 if isinstance(correct_answer, str) and correct_answer.isdigit():
                     correct_answer = int(correct_answer)
                 elif not isinstance(correct_answer, int):
@@ -517,7 +452,6 @@ Validate the answers now:
                 }
 
             elif question['type'] in ['short-answer', 'fill-in-blank']:
-                # For these types, we rely on the LLM to determine correctness from context
                 formatted_q['expected_answer'] = question.get('expected_answer',
                                                               "To be determined from course materials")
 
@@ -525,8 +459,8 @@ Validate the answers now:
 
         return formatted_questions
 
+    # format student answers
     def _format_student_answers(self, student_answers: List[Dict]) -> List[Dict]:
-        """Format student answers for LLM validation"""
         formatted_answers = []
 
         for answer in student_answers:
@@ -540,10 +474,9 @@ Validate the answers now:
 
         return formatted_answers
 
+    # parse and val LLM response
     def _parse_validation_response(self, llm_response: str) -> Dict[str, Any]:
-        """Parse and validate the LLM response"""
         try:
-            # Try to extract JSON from the response
             start_idx = llm_response.find('{')
             end_idx = llm_response.rfind('}') + 1
 
@@ -551,7 +484,6 @@ Validate the answers now:
                 json_str = llm_response[start_idx:end_idx]
                 validation_results = json.loads(json_str)
 
-                # Validate the structure
                 if 'validation_results' in validation_results:
                     return validation_results
                 else:
@@ -561,7 +493,6 @@ Validate the answers now:
 
         except Exception as e:
             print(f"Error parsing LLM validation response: {e}")
-            # Return error structure
             return {
                 "validation_results": [],
                 "overall_score": 0,
@@ -571,8 +502,8 @@ Validate the answers now:
                 "error": True
             }
 
+    # fallback validation using simple matching when LLM fails
     def _fallback_validation(self, questions: List[Dict], student_answers: List[Dict]) -> Dict[str, Any]:
-        """Fallback validation using simple matching when LLM fails"""
         validation_results = []
         correct_count = 0
 
@@ -585,7 +516,6 @@ Validate the answers now:
             score_percentage = 0
             feedback = "Fallback validation used"
 
-            # Simple validation logic
             if question['type'] in ['multiple-choice', 'true-false']:
                 expected = question.get('correct_answer', 0)
                 student_selection = answer.get('selected_option')
@@ -593,17 +523,15 @@ Validate the answers now:
                 score_percentage = 100 if is_correct else 0
 
             elif question['type'] == 'short-answer':
-                # For short answers, give partial credit if any text provided
                 student_text = answer.get('answer_text', '').strip()
                 if student_text:
-                    score_percentage = 50  # Partial credit
+                    score_percentage = 50
                     feedback = "Partial credit given - answer requires manual review"
 
             elif question['type'] == 'fill-in-blank':
-                # Basic validation for fill-in-the-blank
                 fill_answers = answer.get('fill_in_answers', [])
                 if fill_answers and any(ans.strip() for ans in fill_answers):
-                    score_percentage = 50  # Partial credit
+                    score_percentage = 50
                     feedback = "Partial credit given - answer requires manual review"
 
             if is_correct or score_percentage > 0:

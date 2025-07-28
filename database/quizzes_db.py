@@ -15,11 +15,12 @@ def get_conn():
         password=os.getenv("PG_PASSWORD")
     )
 
+# init
 def create_quiz_tables():
     conn = get_conn()
     cur = conn.cursor()
 
-    # Quizzes table
+    # quizzes
     cur.execute("""
                 CREATE TABLE IF NOT EXISTS quizzes
                 (
@@ -33,7 +34,7 @@ def create_quiz_tables():
                 )
                 """)
 
-    # Quiz questions table
+    # quiz_questions
     cur.execute("""
                 CREATE TABLE IF NOT EXISTS quiz_questions
                 (
@@ -49,7 +50,7 @@ def create_quiz_tables():
                 )
                 """)
 
-    # Quiz attempts table
+    # quiz_attempts
     cur.execute("""
                 CREATE TABLE IF NOT EXISTS quiz_attempts
                 (
@@ -71,25 +72,25 @@ def create_quiz_tables():
     conn.close()
     print("✅ Quiz tables created (or already existed).")
 
+# convert correct answer to appropriate format for db storage
 def normalize_correct_answer(correct_answer, question_type):
-    """Convert correct_answer to appropriate format for database storage"""
     if question_type == 'multiple-choice' or question_type == 'true-false':
         return int(correct_answer)
     elif question_type == 'fill-in-blank':
-        # Store as JSON string for arrays
+        # store as json string for arrays
         if isinstance(correct_answer, list):
             return json.dumps(correct_answer)
         return str(correct_answer)
     else:  # short-answer
         return str(correct_answer)
 
+# create a new quiz with questions
 def create_quiz(project_id, title, difficulty, questions):
-    """Create a new quiz with questions"""
     conn = get_conn()
     cur = conn.cursor()
 
     try:
-        # Create the quiz
+        # create the quiz
         cur.execute("""
                     INSERT INTO quizzes (project_id, title, difficulty, question_count)
                     VALUES (%s, %s, %s, %s)
@@ -99,7 +100,7 @@ def create_quiz(project_id, title, difficulty, questions):
         quiz_result = cur.fetchone()
         quiz_id, created_at = quiz_result
 
-        # Add questions
+        # add questions
         for i, question in enumerate(questions):
             cur.execute("""
                         INSERT INTO quiz_questions
@@ -115,7 +116,7 @@ def create_quiz(project_id, title, difficulty, questions):
                             i + 1
                         ))
 
-        # Update project timestamp
+        # update project timestamp
         cur.execute("UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = %s", (project_id,))
 
         conn.commit()
@@ -140,8 +141,8 @@ def create_quiz(project_id, title, difficulty, questions):
         conn.close()
         raise e
 
+# get all quizzes for a project
 def get_project_quizzes(project_id):
-    """Get all quizzes for a project"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -175,12 +176,12 @@ def get_project_quizzes(project_id):
     conn.close()
     return quizzes
 
+# get a quiz with all its questions
 def get_quiz_with_questions(quiz_id, user_id):
-    """Get a quiz with all its questions (verify user has access)"""
     conn = get_conn()
     cur = conn.cursor()
 
-    # First check if user has access to this quiz
+    # check ownership
     cur.execute("""
                 SELECT q.id, q.project_id, q.title, q.difficulty, q.question_count, q.created_at
                 FROM quizzes q
@@ -205,7 +206,7 @@ def get_quiz_with_questions(quiz_id, user_id):
         'questions': []
     }
 
-    # Get questions
+    # get questions
     cur.execute("""
                 SELECT id, question_text, question_type, options, correct_answer, explanation, question_order
                 FROM quiz_questions
@@ -228,8 +229,8 @@ def get_quiz_with_questions(quiz_id, user_id):
     conn.close()
     return quiz_data
 
+# submit an attempt
 def submit_quiz_attempt(quiz_id, user_id, answers, score):
-    """Submit a quiz attempt"""
     conn = get_conn()
     cur = conn.cursor()
 
@@ -255,15 +256,13 @@ def submit_quiz_attempt(quiz_id, user_id, answers, score):
         'submitted_at': submitted_at
     }
 
+# submit a quiz attempt with detailed LLM validation results
 def submit_quiz_attempt_with_validation(quiz_id, user_id, answers, score, validation_results):
-    """
-    Submit a quiz attempt with detailed LLM validation results
-    """
     conn = get_conn()
     cur = conn.cursor()
 
     try:
-        # Insert the basic attempt
+        # insert the basic attempt
         cur.execute("""
                     INSERT INTO quiz_attempts (quiz_id, user_id, score, submitted_at, answers, validation_results)
                     VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s, %s)
@@ -284,12 +283,12 @@ def submit_quiz_attempt_with_validation(quiz_id, user_id, answers, score, valida
         cur.close()
         conn.close()
 
+# get performance analytics at the question level
 def get_question_performance_analytics(quiz_id, user_id):
-    """Get performance analytics at the question level"""
     conn = get_conn()
     cur = conn.cursor()
 
-    # Get question performance data
+    # get question performance data
     cur.execute("""
                 SELECT qq.id        as question_id,
                        qq.question_text,
@@ -317,7 +316,7 @@ def get_question_performance_analytics(quiz_id, user_id):
     for row in cur.fetchall():
         question_analytics.append({
             'question_id': row[0],
-            'question_text': row[1][:100] + ('...' if len(row[1]) > 100 else ''),  # Truncate for display
+            'question_text': row[1][:100] + ('...' if len(row[1]) > 100 else ''),  # truncate for display
             'question_type': row[2],
             'times_attempted': row[3] or 0,
             'avg_score': round(float(row[4]), 2) if row[4] else 0,
@@ -328,8 +327,8 @@ def get_question_performance_analytics(quiz_id, user_id):
     conn.close()
     return question_analytics
 
+# get a specific quiz attempt with all details
 def get_quiz_attempt(attempt_id, user_id):
-    """Get a specific quiz attempt with all details"""
     conn = get_conn()
     cur = conn.cursor()
 
@@ -368,8 +367,8 @@ def get_quiz_attempt(attempt_id, user_id):
         'project_id': result[8]
     }
 
+# get analytics for a specific quiz's attempt by a user
 def get_quiz_attempt_analytics(quiz_id, user_id):
-    """Get analytics for a specific quiz's attempts by a user"""
     conn = get_conn()
     cur = conn.cursor()
 
@@ -405,8 +404,8 @@ def get_quiz_attempt_analytics(quiz_id, user_id):
         'improvement': round(float(result[2]) - float(result[3]), 2) if result[2] and result[3] else 0
     }
 
+# get all attempts for a quiz by a user
 def get_quiz_attempts(quiz_id, user_id):
-    """Get all attempts for a quiz by a user"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -433,8 +432,8 @@ def get_quiz_attempts(quiz_id, user_id):
     conn.close()
     return attempts
 
+# get quiz attempts with enhanced details including validation info
 def get_quiz_attempts_with_details(quiz_id, user_id, limit=50):
-    """Get quiz attempts with enhanced details including validation info"""
     conn = get_conn()
     cur = conn.cursor()
 
@@ -480,8 +479,8 @@ def get_quiz_attempts_with_details(quiz_id, user_id, limit=50):
     conn.close()
     return attempts
 
+# get quiz attempt history for a specific user and quiz
 def get_quiz_attempts_history(quiz_id, user_id, limit=10):
-    """Get quiz attempt history for a specific user and quiz"""
     conn = get_conn()
     cur = conn.cursor()
 
@@ -509,8 +508,8 @@ def get_quiz_attempts_history(quiz_id, user_id, limit=10):
     conn.close()
     return attempts
 
+# update a quiz attempt with new score and validation results
 def update_quiz_attempt_score(attempt_id, new_score, validation_results):
-    """Update a quiz attempt with new score and validation results"""
     conn = get_conn()
     cur = conn.cursor()
 
@@ -529,12 +528,12 @@ def update_quiz_attempt_score(attempt_id, new_score, validation_results):
 
     return updated
 
+# delete quiz
 def delete_quiz(quiz_id, user_id):
-    """Delete a quiz (with user permission check)"""
     conn = get_conn()
     cur = conn.cursor()
 
-    # Check if user owns this quiz through project ownership
+    # verify ownership
     cur.execute("""
                 SELECT q.title, q.project_id
                 FROM quizzes q
@@ -551,10 +550,7 @@ def delete_quiz(quiz_id, user_id):
 
     quiz_title, project_id = result
 
-    # Delete quiz (CASCADE will handle questions and attempts)
     cur.execute("DELETE FROM quizzes WHERE id = %s", (quiz_id,))
-
-    # Update project timestamp
     cur.execute("UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = %s", (project_id,))
 
     conn.commit()
@@ -564,8 +560,8 @@ def delete_quiz(quiz_id, user_id):
     print(f"✅ Deleted quiz '{quiz_title}' (ID: {quiz_id})")
     return True
 
+# get analytics for all user's quizzes
 def get_user_quiz_analytics(user_id):
-    """Get analytics for all user's quizzes"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -597,12 +593,12 @@ def get_user_quiz_analytics(user_id):
         'recent_attempts': result[5]
     }
 
+# get comprehensive quiz stats for a user
 def get_user_quiz_statistics(user_id, days=30):
-    """Get comprehensive quiz statistics for a user"""
     conn = get_conn()
     cur = conn.cursor()
 
-    # Get overall stats
+    # get overall stats
     cur.execute("""
                 SELECT COUNT(DISTINCT q.id)                                                             as total_quizzes,
                        COUNT(qa.id)                                                                     as total_attempts,
@@ -619,7 +615,7 @@ def get_user_quiz_statistics(user_id, days=30):
 
     stats = cur.fetchone()
 
-    # Get performance by difficulty
+    # get performance by difficulty
     cur.execute("""
                 SELECT q.difficulty,
                        COUNT(qa.id)  as attempts,
@@ -648,7 +644,7 @@ def get_user_quiz_statistics(user_id, days=30):
             'best_score': round(float(row[3]), 2) if row[3] else 0
         })
 
-    # Get recent performance trend
+    # get recent performance trend
     cur.execute("""
                 SELECT DATE(qa.submitted_at) as date,
                        AVG(qa.score)         as avg_score,
@@ -686,8 +682,8 @@ def get_user_quiz_statistics(user_id, days=30):
         'performance_trend': performance_trend
     }
 
+# get quiz performance over time
 def get_quiz_performance_over_time(user_id, days=30):
-    """Get quiz performance over time"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -713,8 +709,8 @@ def get_quiz_performance_over_time(user_id, days=30):
     conn.close()
     return performance_data
 
+# get performance breakdown by difficulty level
 def get_difficulty_breakdown(user_id):
-    """Get performance breakdown by difficulty level"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -748,8 +744,8 @@ def get_difficulty_breakdown(user_id):
     conn.close()
     return difficulty_data
 
+# search quizzes
 def search_quizzes(user_id, query):
-    """Search quizzes by title"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""

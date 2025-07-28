@@ -1,3 +1,4 @@
+/* fonts */
 @font-face {
   font-family: 'Supply';
   src: url('../fonts/Supply-Regular.otf') format('opentype');
@@ -17,13 +18,29 @@
   font-style: normal;
 }
 
+/* keyframes */
 @keyframes rotate-glow {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
 
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 :root {
-    /* Dark theme with blue accent */
+    /* dark theme with blue accent */
     --bg-primary: #0a0f1c;
     --bg-secondary: #1a2332;
     --bg-tertiary: #243248;
@@ -62,14 +79,14 @@ body {
 }
 
 h1, h2, h3 {
-  font-weight: 700; /* bold */
+  font-weight: 700;
 }
 
 .subtitle, .label, button, .add-font {
-  font-weight: 500; /* medium */
+  font-weight: 500;
 }
 
-/* Background Elements */
+/* bg elements (not working for some reason) */
 .bg-grid {
     position: fixed;
     top: 0;
@@ -104,7 +121,7 @@ h1, h2, h3 {
     padding: 0 24px;
 }
 
-/* Header */
+/* header */
 header {
     position: fixed;
     top: 20px;
@@ -241,7 +258,7 @@ nav {
     background: linear-gradient(135deg, var(--accent-hover) 0%, #1e40af 100%);
 }
 
-/* Navigation Auth Buttons - add to your CSS */
+/* nav auth buttons */
 
 .nav-auth {
     display: flex;
@@ -268,13 +285,12 @@ nav {
     transform: translateY(-1px);
 }
 
-/* Mobile responsiveness for auth buttons */
+/* mobile friendly styles */
 @media (max-width: 768px) {
     .nav-auth {
-        display: none; /* Hide in mobile menu, add to mobile-menu instead */
+        display: none;
     }
 
-    /* Add these to your mobile menu if you have one */
     .mobile-nav-auth {
         display: flex;
         flex-direction: column;
@@ -303,9 +319,9 @@ nav {
     }
 }
 
-/* Hero Section */
+/* hero section */
 .hero {
-    padding: 160px 0 80px; /* Increased top padding */
+    padding: 160px 0 80px;
     text-align: center;
 }
 
@@ -367,11 +383,6 @@ nav {
     background: var(--success);
     border-radius: 50%;
     animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
 }
 
 .hero h1 {
@@ -441,7 +452,7 @@ nav {
     background: var(--bg-tertiary);
 }
 
-/* Upload Section */
+/* upload section */
 .upload-section {
     padding: 80px 0;
 }
@@ -565,7 +576,7 @@ nav {
     border-color: var(--accent);
 }
 
-/* File List */
+/* file list */
 .file-list {
     margin-top: 32px;
 }
@@ -580,11 +591,6 @@ nav {
     justify-content: space-between;
     align-items: center;
     animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
 }
 
 .file-info {
@@ -633,7 +639,7 @@ nav {
     color: var(--danger);
 }
 
-/* Generate Button */
+/* generate */
 .generate-section {
     text-align: center;
     margin-top: 48px;
@@ -668,7 +674,7 @@ nav {
     box-shadow: var(--shadow-xl);
 }
 
-/* Features Section */
+/* features section */
 .features {
     padding: 120px 0;
     background: var(--bg-secondary);
@@ -719,7 +725,7 @@ nav {
     line-height: 1.6;
 }
 
-/* Processing State */
+/* processing state */
 .processing {
     display: none;
     text-align: center;
@@ -741,7 +747,7 @@ nav {
     100% { transform: rotate(360deg); }
 }
 
-/* Footer */
+/* footer */
 footer {
     padding: 48px 0;
     border-top: 1px solid var(--border);
@@ -750,7 +756,7 @@ footer {
     font-size: 14px;
 }
 
-/* Mobile Menu */
+/* mobile menu */
 .mobile-menu-toggle {
     display: none;
     background: transparent;
@@ -785,11 +791,6 @@ footer {
 .mobile-menu.active {
     display: block;
     animation: slideDown 0.3s ease;
-}
-
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
 }
 
 .mobile-nav-links {
@@ -836,7 +837,7 @@ footer {
     transform: scale(1.02);
 }
 
-/* Responsive */
+/* mobile friendly styles */
 @media (max-width: 768px) {
     header {
         top: 12px;

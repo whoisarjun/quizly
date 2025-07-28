@@ -1,3 +1,5 @@
+/* fonts */
+
 @font-face {
   font-family: 'Supply';
   src: url('../fonts/Supply-Regular.otf') format('opentype');
@@ -16,6 +18,8 @@
   font-weight: 700;
   font-style: normal;
 }
+
+/* keyframes */
 
 @keyframes rotate-glow {
     0% { transform: rotate(0deg); }
@@ -48,7 +52,7 @@
 }
 
 :root {
-    /* Dark theme with blue accent */
+    /* dark theme with blue accent */
     --bg-primary: #0a0f1c;
     --bg-secondary: #1a2332;
     --bg-tertiary: #243248;
@@ -95,7 +99,7 @@ h1, h2, h3 {
     font-weight: 500;
 }
 
-/* Background Elements */
+/* bg elements (not working for some reason) */
 .bg-grid {
     position: fixed;
     top: 0;
@@ -125,7 +129,7 @@ h1, h2, h3 {
     padding: 0 24px;
 }
 
-/* Header */
+/* header */
 header {
     position: fixed;
     top: 20px;
@@ -228,7 +232,7 @@ nav {
     border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
-/* User Menu */
+/* user menu */
 .nav-auth {
     margin-left: 8px;
 }
@@ -308,13 +312,13 @@ nav {
     color: var(--text-primary);
 }
 
-/* Main Dashboard */
+/* main dashboard */
 .dashboard-main {
     padding-top: 120px;
     min-height: 100vh;
 }
 
-/* Welcome Section */
+/* welcome section */
 .welcome-section {
     display: flex;
     justify-content: space-between;
@@ -363,7 +367,7 @@ nav {
     box-shadow: var(--shadow-xl);
 }
 
-/* Stats Section */
+/* stats section */
 .stats-section {
     margin-bottom: 48px;
 }
@@ -413,7 +417,7 @@ nav {
     font-size: 14px;
 }
 
-/* Projects Section */
+/* projects section */
 .projects-section {
     margin-bottom: 48px;
 }
@@ -537,7 +541,7 @@ nav {
     background: var(--accent-hover);
 }
 
-/* Modal Styles */
+/* modal styles */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -614,7 +618,7 @@ nav {
     padding: 24px;
 }
 
-/* Form Styles */
+/* form styles */
 .form-group {
     margin-bottom: 20px;
 }
@@ -710,7 +714,7 @@ nav {
     transform: translateY(-1px);
 }
 
-/* Project Modal Tabs */
+/* project modal tabs */
 .project-tabs {
     display: flex;
     border-bottom: 1px solid var(--border);
@@ -792,7 +796,7 @@ nav {
     visibility: visible;
 }
 
-/* Upload Section in Modal */
+/* modal upload section */
 .upload-section {
     margin-bottom: 32px;
 }
@@ -861,7 +865,7 @@ nav {
     border-color: var(--accent);
 }
 
-/* File List */
+/* file list */
 .file-list {
     display: flex;
     flex-direction: column;
@@ -925,7 +929,7 @@ nav {
     color: var(--danger);
 }
 
-/* Quiz Controls */
+/* quiz controls */
 .quiz-controls {
     background: var(--bg-primary);
     border: 1px solid var(--border);
@@ -1005,7 +1009,7 @@ nav {
     cursor: not-allowed;
 }
 
-/* Quiz List */
+/* quiz list */
 .quiz-list {
     display: flex;
     flex-direction: column;
@@ -1093,7 +1097,7 @@ nav {
     font-size: 12px;
 }
 
-/* Settings Tab */
+/* settings tab */
 .settings-form {
     max-width: 500px;
 }
@@ -1118,7 +1122,7 @@ nav {
     margin-bottom: 16px;
 }
 
-/* Loading Overlay */
+/* loading overlay */
 .loading-overlay {
     position: fixed;
     top: 0;
@@ -1160,7 +1164,7 @@ nav {
     font-size: 16px;
 }
 
-/* Quiz Taking Modal */
+/* quiz taking modal */
 .quiz-progress {
     display: flex;
     align-items: center;
@@ -1431,7 +1435,7 @@ nav {
     line-height: 1.6;
 }
 
-/* Ensure LaTeX renders properly in different contexts */
+/* latex rendering fixes */
 .quiz-title .katex,
 .question-text .katex,
 .option-text .katex,
@@ -1440,9 +1444,7 @@ nav {
     font-size: inherit !important;
 }
 
-/* Add these styles to your dashboard.css file */
-
-/* Quiz History Styles */
+/* quiz history */
 .quiz-history {
     margin-top: 16px;
     border-top: 1px solid var(--border);
@@ -1478,7 +1480,7 @@ nav {
     overflow-y: auto;
 }
 
-/* Attempt Item Styles */
+/* attempt item styles */
 .attempt-item {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
@@ -1602,7 +1604,7 @@ nav {
     border: 1px solid #b3e5fc;
 }
 
-/* Attempt Details Modal */
+/* attempt details modal */
 .attempt-details-modal .modal {
     max-width: 800px;
 }
@@ -1633,7 +1635,7 @@ nav {
     font-size: 14px;
 }
 
-/* Detailed Results Styles */
+/* detailed results styles */
 .detailed-results {
     max-height: 500px;
     overflow-y: auto;
@@ -1690,9 +1692,7 @@ nav {
     font-size: 14px;
 }
 
-/* Add these styles to your dashboard.css file */
-
-/* Enhanced Quiz Item Styles */
+/* enhanced quiz items */
 .quiz-item {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
@@ -1783,7 +1783,7 @@ nav {
 }
 
 .quiz-btn.primary:hover {
-    background: var(--primary-dark);
+    background: var(--text-secondary);
 }
 
 .quiz-btn.danger {
@@ -1843,7 +1843,7 @@ nav {
     letter-spacing: 0.5px;
 }
 
-/* Performance Summary */
+/* performance summary */
 .quiz-performance-summary {
     margin-bottom: 16px;
     padding: 12px;
@@ -1886,7 +1886,7 @@ nav {
     font-style: italic;
 }
 
-/* Quiz History Styles */
+/* quiz history styles */
 .quiz-history {
     margin-top: 16px;
     border-top: 1px solid var(--border);
@@ -1944,7 +1944,7 @@ nav {
     overflow-y: auto;
 }
 
-/* Quiz Analytics Styles */
+/* quiz analytics styles */
 .quiz-analytics {
     margin-top: 16px;
     border-top: 1px solid var(--border);
@@ -2010,7 +2010,7 @@ nav {
     gap: 6px;
 }
 
-/* Score Progression Chart */
+/* score progression chart */
 .score-progression {
     margin: 20px 0;
     padding: 16px;
@@ -2062,7 +2062,7 @@ nav {
     text-orientation: mixed;
 }
 
-/* Consistency Meter */
+/* consistency meter */
 .consistency-meter {
     margin: 20px 0;
     padding: 16px;
@@ -2101,7 +2101,7 @@ nav {
     text-align: center;
 }
 
-/* Performance Insights */
+/* performance insights */
 .analytics-insights {
     margin-top: 20px;
     padding: 16px;
@@ -2152,7 +2152,7 @@ nav {
     border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
-/* Attempt Item Styles */
+/* attempt item styles */
 .attempt-item {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
@@ -2276,7 +2276,7 @@ nav {
     border: 1px solid #b3e5fc;
 }
 
-/* Attempt Details Modal */
+/* attempt details modal */
 .attempt-details-modal .modal {
     max-width: 800px;
 }
@@ -2307,7 +2307,7 @@ nav {
     font-size: 14px;
 }
 
-/* Detailed Results Styles */
+/* detailed results styles */
 .detailed-results {
     max-height: 500px;
     overflow-y: auto;
@@ -2364,7 +2364,7 @@ nav {
     font-size: 14px;
 }
 
-/* Responsive Design */
+/* mobile friendly styles */
 @media (max-width: 768px) {
     .quiz-header {
         flex-direction: column;
@@ -2464,45 +2464,9 @@ nav {
         gap: 4px;
         height: 50px;
     }
-}/* Add these styles to your dashboard.css file */
-
-/* Quiz History Styles */
-.quiz-history {
-    margin-top: 16px;
-    border-top: 1px solid var(--border);
-    padding-top: 16px;
-    background: var(--bg-tertiary);
-    border-radius: 8px;
-    padding: 16px;
 }
 
-.history-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-}
-
-.history-header h5 {
-    margin: 0;
-    color: var(--text-primary);
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.history-loading {
-    color: var(--text-secondary);
-    font-size: 14px;
-}
-
-.history-content {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-/* Attempt Item Styles */
+/* attempt item styles */
 .attempt-item {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
@@ -2626,7 +2590,7 @@ nav {
     border: 1px solid #b3e5fc;
 }
 
-/* Attempt Details Modal */
+/* attempt details modal */
 .attempt-details-modal .modal {
     max-width: 800px;
 }
@@ -2657,7 +2621,7 @@ nav {
     font-size: 14px;
 }
 
-/* Detailed Results Styles */
+/* detailed results styles */
 .detailed-results {
     max-height: 500px;
     overflow-y: auto;
@@ -2714,7 +2678,7 @@ nav {
     font-size: 14px;
 }
 
-/* Responsive Design */
+/* mobile friendly styles */
 @media (max-width: 768px) {
     .attempt-header {
         flex-direction: column;
@@ -2748,7 +2712,6 @@ nav {
     }
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
     .attempt-header {
         flex-direction: column;
@@ -2782,7 +2745,6 @@ nav {
     }
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
     .dashboard-main {
         padding-top: 100px;

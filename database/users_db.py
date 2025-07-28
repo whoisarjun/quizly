@@ -16,6 +16,7 @@ def get_conn():
         password=os.getenv("PG_PASSWORD")
     )
 
+# init
 def create_users_table():
     conn = get_conn()
     cur = conn.cursor()
@@ -33,6 +34,7 @@ def create_users_table():
     conn.close()
     print("✅ users table created (or already existed).")
 
+# sign up
 def create_new_user(first_name, last_name, email, password):
     conn = get_conn()
     cur = conn.cursor()
@@ -45,6 +47,7 @@ def create_new_user(first_name, last_name, email, password):
     conn.close()
     print(f"✅ Created user {email}")
 
+# check if user exists
 def user_exists(email):
     conn = get_conn()
     cur = conn.cursor()
@@ -54,6 +57,7 @@ def user_exists(email):
     conn.close()
     return exists
 
+# check if password is right
 def validate_user(email, plain_password):
     conn = get_conn()
     cur = conn.cursor()

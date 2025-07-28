@@ -1,6 +1,13 @@
-/* Auth page specific styles - extends index.css */
+/* extends index.css */
 
-/* Auth Section */
+/* keyframes*/
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* auth section */
 .auth-section {
     min-height: 100vh;
     display: flex;
@@ -14,7 +21,7 @@
     position: relative;
 }
 
-/* Back Link */
+/* backlink */
 .back-link {
     margin-bottom: 32px;
 }
@@ -39,7 +46,7 @@
     border-color: var(--border);
 }
 
-/* Auth Card */
+/* auth card */
 .auth-card {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
@@ -60,7 +67,7 @@
     background: var(--gradient-1);
 }
 
-/* Auth Form */
+/* auth form */
 .auth-form {
     opacity: 1;
     transform: translateX(0);
@@ -77,7 +84,7 @@
     right: 48px;
 }
 
-/* Auth Header */
+/* auth header */
 .auth-header {
     text-align: center;
     margin-bottom: 40px;
@@ -114,7 +121,7 @@
     line-height: 1.5;
 }
 
-/* Form Styles */
+/* form styles */
 .form {
     margin-bottom: 32px;
 }
@@ -192,7 +199,7 @@
     color: var(--text-secondary);
 }
 
-/* Password Strength */
+/* password strength */
 .password-strength {
     margin-top: 8px;
 }
@@ -220,7 +227,7 @@
     font-weight: 500;
 }
 
-/* Form Options */
+/* form options */
 .form-options {
     display: flex;
     justify-content: space-between;
@@ -230,7 +237,7 @@
     gap: 16px;
 }
 
-/* Custom Checkbox */
+/* custom checkbox */
 .checkbox-wrapper {
     display: flex;
     align-items: flex-start;
@@ -286,7 +293,7 @@
     text-decoration: underline;
 }
 
-/* Auth Button */
+/* auth button */
 .auth-btn {
     width: 100%;
     background: var(--gradient-1);
@@ -315,7 +322,7 @@
     transform: translateY(0);
 }
 
-/* Divider */
+/* divider */
 .auth-divider {
     position: relative;
     text-align: center;
@@ -341,7 +348,7 @@
     z-index: 1;
 }
 
-/* Social Buttons */
+/* social buttons */
 .social-buttons {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -380,7 +387,7 @@
     border-color: #333;
 }
 
-/* Auth Switch */
+/* auth switch */
 .auth-switch {
     text-align: center;
     color: var(--text-secondary);
@@ -403,7 +410,7 @@
     text-decoration: underline;
 }
 
-/* Enhanced button states */
+/* enhanced button states */
 .auth-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -416,7 +423,7 @@
     box-shadow: var(--shadow-sm) !important;
 }
 
-/* Enhanced error message styling */
+/* enhanced error message styling */
 .error-message {
     display: block;
     margin-top: 4px;
@@ -424,7 +431,7 @@
     font-weight: 500;
 }
 
-/* Input validation states */
+/* input validation states */
 .input-wrapper.error input {
     border-color: var(--danger);
     background-color: rgba(239, 68, 68, 0.05);
@@ -435,13 +442,13 @@
     background-color: rgba(34, 197, 94, 0.05);
 }
 
-/* Smooth transitions for all validation states */
+/* smooth transitions for all validation states */
 .auth-btn,
 .input-wrapper input {
     transition: all 0.2s ease;
 }
 
-/* Loading state for buttons (optional) */
+/* loading state for buttons */
 .auth-btn.loading {
     position: relative;
     color: transparent;
@@ -462,13 +469,7 @@
     animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-/* Responsive */
+/* mobile friendly styles */
 @media (max-width: 768px) {
     .auth-card {
         padding: 32px 24px;

@@ -15,6 +15,7 @@ def get_conn():
         password=os.getenv("PG_PASSWORD")
     )
 
+# init
 def create_project_files_table():
     conn = get_conn()
     cur = conn.cursor()
@@ -38,9 +39,8 @@ def create_project_files_table():
     conn.close()
     print("✅ project_files table created (or already existed).")
 
+# add file record to db
 def add_file_to_project(project_id, original_filename, file_size, mime_type, file_path):
-    """Add a file record to the database and return just the file_id"""
-    # Generate unique filename to avoid conflicts
     file_extension = os.path.splitext(original_filename)[1]
     unique_filename = f"{uuid.uuid4().hex}{file_extension}"
 
@@ -55,7 +55,6 @@ def add_file_to_project(project_id, original_filename, file_size, mime_type, fil
     result = cur.fetchone()
     file_id = result[0]
 
-    # Update project's updated_at timestamp
     cur.execute("UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = %s", (project_id,))
 
     conn.commit()
@@ -63,10 +62,10 @@ def add_file_to_project(project_id, original_filename, file_size, mime_type, fil
     conn.close()
 
     print(f"✅ Added file '{original_filename}' to project {project_id}")
-    return file_id  # Return just the ID, not the full object
+    return file_id
 
+# get all files for a specific project
 def get_project_files(project_id):
-    """Get all files for a specific project"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -100,8 +99,8 @@ def get_project_files(project_id):
     conn.close()
     return files
 
+# get a specific file
 def get_file_by_id(file_id):
-    """Get a specific file by ID"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -137,15 +136,14 @@ def get_file_by_id(file_id):
         'file_path': result[6],
         'upload_date': result[7],
         'processed': result[8],
-        'user_id': result[9]  # For permission checking
+        'user_id': result[9]
     }
 
+# delete a file
 def delete_file(file_id, user_id):
-    """Delete a file (with user permission check)"""
     conn = get_conn()
     cur = conn.cursor()
 
-    # First check if user owns this file through project ownership
     cur.execute("""
                 SELECT pf.original_filename, pf.file_path, pf.project_id
                 FROM project_files pf
@@ -162,10 +160,8 @@ def delete_file(file_id, user_id):
 
     filename, file_path, project_id = result
 
-    # Delete the file record
     cur.execute("DELETE FROM project_files WHERE id = %s", (file_id,))
 
-    # Update project timestamp
     cur.execute("UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = %s", (project_id,))
 
     conn.commit()
@@ -173,10 +169,10 @@ def delete_file(file_id, user_id):
     conn.close()
 
     print(f"✅ Deleted file '{filename}' (ID: {file_id})")
-    return True, file_path  # Return file_path so you can delete actual file from storage
+    return True, file_path
 
+# mark a file as processed
 def mark_file_processed(file_id):
-    """Mark a file as processed (useful for AI processing pipeline)"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -195,8 +191,8 @@ def mark_file_processed(file_id):
 
     return updated
 
+# get all unprocessed files
 def get_unprocessed_files():
-    """Get all unprocessed files (for background processing)"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -229,8 +225,8 @@ def get_unprocessed_files():
     conn.close()
     return files
 
+# get file stats for a project
 def get_file_stats_by_project(project_id):
-    """Get file statistics for a project"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -260,8 +256,8 @@ def get_file_stats_by_project(project_id):
         'text_files': result[5]
     }
 
+# search files within a project by filename
 def search_files_in_project(project_id, query):
-    """Search files within a project by filename"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""

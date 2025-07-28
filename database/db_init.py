@@ -3,6 +3,7 @@ from .projects_db import create_projects_table
 from .files_db import create_project_files_table
 from .quizzes_db import create_quiz_tables
 
+# shorthand to init all tables
 def init_all_tables():
     print("Starting database initialization...")
 
