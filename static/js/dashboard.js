@@ -1319,6 +1319,7 @@ class Dashboard {
                 `;
                 break;
 
+            case 'fill-blank':
             case 'fill-in-blank':
                 const currentAnswers = this.userAnswers[this.currentQuestionIndex] || [];
                 let cleanQuestionText = question.text;
@@ -1381,7 +1382,7 @@ class Dashboard {
                 case 'multiple-choice': return '#3b82f6';
                 case 'true-false': return '#10b981';
                 case 'short-answer': return '#f59e0b';
-                case 'fill-in-blank': return '#8b5cf6';
+                case 'fill-in-blank': case 'fill-blank': return '#8b5cf6';
                 default: return '#6b7280';
             }
         };
@@ -1391,7 +1392,7 @@ class Dashboard {
                 case 'multiple-choice': return 'Multiple Choice';
                 case 'true-false': return 'True/False';
                 case 'short-answer': return 'Short Answer';
-                case 'fill-in-blank': return 'Fill in Blanks';
+                case 'fill-in-blank': case 'fill-blank': return 'Fill in Blanks';
                 default: return type.replace('-', ' ').toUpperCase();
             }
         };

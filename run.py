@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session, send_file, render_template
+from flask import Flask, request, jsonify, session, send_file, render_template, redirect
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from argon2 import PasswordHasher
@@ -11,34 +11,28 @@ from file_manager import text_extractor
 from llm import chatbot
 from dotenv import load_dotenv
 
+# super secret 🤫
 load_dotenv()
 
+# server setup
 app = Flask(__name__, static_folder='static')
 app.config['SECRET_KEY'] = os.getenv('API_SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = 'uploads/'
 app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024  # 25MB max file size
+CORS(app)
 
-CORS(app)  # Enable CORS for frontend
-
-# Initialize database and password hasher
+# all inits
 db_init.init_all_tables()
 ph = PasswordHasher()
-chatbot.set_model('gpt-4.1-nano')
+chatbot.set_model('o4-mini')
 answer_validator = chatbot.AnswerValidator()
-
-# ==============================
-# TO-DO LIST
-# ==============================
-
-# TODO: Project settings editing
 
 # ==============================
 # UTILITY FUNCTIONS
 # ==============================
 
+# decorator func to require authentication
 def require_auth(f):
-    """Decorator to require authentication"""
-
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -47,12 +41,12 @@ def require_auth(f):
 
     return decorated_function
 
+# get current user id from whoever is running the session
 def get_current_user_id():
-    """Get current user ID from session"""
     return session.get('user_id')
 
+# simple error handler 💀
 def handle_error(e, message="An error occurred"):
-    """Standard error handler"""
     print(f"Error: {e}")
     return jsonify({
         'error': {
@@ -63,31 +57,38 @@ def handle_error(e, message="An error occurred"):
     }), 500
 
 # ==============================
-# PAGE ROUTES (Your original routes)
+# PAGE ROUTES
 # ==============================
 
+# home page
 @app.route('/')
 def home():
+    if 'user_id' in session:
+        return redirect('/dashboard')
     return render_template('index.html')
 
-
+# login/create acc page
 @app.route('/login')
 def login_page():
+    if 'user_id' in session:
+        return redirect('/dashboard')
     return render_template('sign_in.html')
 
-
+# dashboard page
 @app.route('/dashboard')
 def dashboard():
+    if 'user_id' not in session:
+        return redirect('/login')
     return render_template('dashboard.html')
 
-
 # ==============================
-# AUTHENTICATION ENDPOINTS
+# AUTH ENDPOINTS
 # ==============================
 
+# log in -> dashboard
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    session.clear()  # wipe any existing session data
+    session.clear()
     try:
         data = request.get_json()
         email = data.get('email')
@@ -99,15 +100,10 @@ def login():
         if users_db.user_exists(email):
             validation = users_db.validate_user(email, password)
             if validation[0]:
-                # GET THE USER ID FROM YOUR DATABASE AND SET IT IN SESSION
-                print(validation[1])
                 user_info = validation[1]
-                session['user_id'] = user_info['user_id']  # <-- ADD THIS LINE (use whatever key has the user ID)
+                session['user_id'] = user_info['user_id']
                 print(f'Successfully signed in {email}')
-                return jsonify({
-                    'user': user_info,
-                    'message': 'Login successful'
-                })
+                return redirect('/dashboard')
             else:
                 return jsonify({'error': {'code': 'INVALID_CREDENTIALS',
                                           'message': validation[1].get('message', 'Invalid credentials')}}), 401
@@ -117,17 +113,17 @@ def login():
     except Exception as e:
         return handle_error(e, "Login failed")
 
-
+# log out from dashboard
 @app.route('/api/auth/logout', methods=['POST'])
 @require_auth
 def logout():
     session.clear()
     return jsonify({'message': 'Logged out successfully'})
 
-
+# create an account -> dashboard
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    session.clear()  # wipe any existing session data
+    session.clear()
     try:
         data = request.get_json()
         first_name = data.get('first_name')
@@ -141,40 +137,29 @@ def register():
         if users_db.user_exists(email):
             return jsonify({'error': {'code': 'USER_EXISTS', 'message': 'User already exists'}}), 400
 
-        # Hash password before storing
         hashed_password = ph.hash(password)
         user_id = users_db.create_new_user(first_name, last_name, email, hashed_password)
-
-        # Get user info and set session
-        user_info = db_utils.get_user_info(user_id)
         session['user_id'] = user_id
 
-        return jsonify({
-            'user': user_info,
-            'message': 'Registration successful'
-        }), 201
+        # Redirect to dashboard instead of returning JSON
+        return redirect('/dashboard')
 
     except Exception as e:
         return handle_error(e, "Registration failed")
 
-
-# Legacy endpoints for backward compatibility
+# legacy endpoints for backward compatibility
 @app.route('/create_user', methods=['POST'])
 def create_user():
-    """Legacy endpoint - redirects to new API"""
     return register()
-
-
 @app.route('/sign_in', methods=['POST'])
 def sign_in():
-    """Legacy endpoint - redirects to new API"""
     return login()
-
 
 # ==============================
 # USER PROFILE ENDPOINTS
 # ==============================
 
+# get user details
 @app.route('/api/user/profile', methods=['GET'])
 @require_auth
 def get_profile():
@@ -185,11 +170,11 @@ def get_profile():
     except Exception as e:
         return handle_error(e, "Failed to get profile")
 
-
 # ==============================
 # DASHBOARD STATS ENDPOINT
 # ==============================
 
+# get user's stats for dashboard
 @app.route('/api/dashboard/stats', methods=['GET'])
 @require_auth
 def get_dashboard_stats():
@@ -218,11 +203,11 @@ def get_dashboard_stats():
     except Exception as e:
         return handle_error(e, "Failed to get dashboard stats")
 
-
 # ==============================
 # PROJECT ENDPOINTS
 # ==============================
 
+# retrieve all projects
 @app.route('/api/projects', methods=['GET'])
 @require_auth
 def get_projects():
@@ -238,7 +223,7 @@ def get_projects():
     except Exception as e:
         return handle_error(e, "Failed to get projects")
 
-
+# create a new project from dashboard
 @app.route('/api/projects', methods=['POST'])
 @require_auth
 def create_project():
@@ -260,14 +245,14 @@ def create_project():
     except Exception as e:
         return handle_error(e, "Failed to create project")
 
-
+# get a project's details
 @app.route('/api/projects/<int:project_id>', methods=['GET'])
 @require_auth
 def get_project(project_id):
     try:
         user_id = get_current_user_id()
 
-        # Verify ownership
+        # make sure the user isn't accessing someone else's proj
         if not db_utils.verify_project_ownership(project_id, user_id):
             return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}}), 403
 
@@ -275,7 +260,7 @@ def get_project(project_id):
         if not project:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Project not found'}}), 404
 
-        # Get files and quizzes for this project
+        # get files and quizzes for this project
         project_files = files_db.get_project_files(project_id)
         project_quizzes = quizzes_db.get_project_quizzes(project_id)
 
@@ -287,10 +272,10 @@ def get_project(project_id):
     except Exception as e:
         return handle_error(e, "Failed to get project")
 
+# update project details
 @app.route('/api/projects/<int:project_id>', methods=['PUT'])
 @require_auth
 def update_project_api(project_id):
-    """Update project details"""
     try:
         user_id = get_current_user_id()
 
@@ -304,13 +289,13 @@ def update_project_api(project_id):
         if not name:
             return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': 'Project name is required'}}), 400
 
-        # Update project using your existing function
+        # update with .db shortcut
         success = projects_db.update_project(project_id, user_id, name=name, description=description)
 
         if not success:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Project not found or no changes made'}}), 404
 
-        # Return updated project data
+        # return updated project data
         updated_project = projects_db.get_project_by_id(project_id, user_id)
 
         return jsonify(updated_project)
@@ -318,27 +303,23 @@ def update_project_api(project_id):
     except Exception as e:
         return handle_error(e, "Failed to update project")
 
-
+# delete project
 @app.route('/api/projects/<int:project_id>', methods=['DELETE'])
 @require_auth
 def delete_project_api(project_id):
-    """Delete a project and all its associated data"""
     try:
         user_id = get_current_user_id()
 
-        # Verify ownership using your existing function
         if not db_utils.verify_project_ownership(project_id, user_id):
             return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}}), 403
 
-        # Get project info before deletion
         project = projects_db.get_project_by_id(project_id, user_id)
         if not project:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Project not found'}}), 404
 
-        # Get all files associated with this project for cleanup
         project_files = files_db.get_project_files(project_id)
 
-        # Delete physical files from disk
+        # delete project files
         deleted_files = []
         failed_file_deletions = []
 
@@ -356,17 +337,16 @@ def delete_project_api(project_id):
                 })
                 print(f"⚠️ Could not delete file: {file_error}")
 
-        # Delete project directory if it exists and is empty
+        # delete project directory if it exists and is empty
         project_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(project_id))
         try:
             if os.path.exists(project_dir):
-                if not os.listdir(project_dir):  # Check if directory is empty
+                if not os.listdir(project_dir):  # check if directory is empty
                     os.rmdir(project_dir)
                     print(f"✅ Deleted project directory: {project_dir}")
         except Exception as dir_error:
             print(f"⚠️ Could not delete project directory: {dir_error}")
 
-        # Delete from database (your existing function handles CASCADE)
         success = projects_db.delete_project(project_id, user_id)
 
         if not success:
@@ -391,6 +371,7 @@ def delete_project_api(project_id):
 # FILE ENDPOINTS
 # ==============================
 
+# upload file(s) to a project
 @app.route('/api/projects/<int:project_id>/files/upload', methods=['POST'])
 @require_auth
 def upload_files(project_id):
@@ -407,7 +388,7 @@ def upload_files(project_id):
         uploaded_files = []
         failed_files = []
 
-        # Create upload directory if it doesn't exist
+        # create upload dir if it doesnt exist
         upload_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(project_id))
         os.makedirs(upload_dir, exist_ok=True)
 
@@ -416,14 +397,14 @@ def upload_files(project_id):
                 continue
 
             try:
-                # Secure the filename
+                # secure filename
                 filename = secure_filename(file.filename)
                 file_path = os.path.join(upload_dir, filename)
 
-                # Save the file
+                # save file
                 file.save(file_path)
 
-                # Add to database
+                # add to db
                 file_id = files_db.add_file_to_project(
                     project_id,
                     file.filename,
@@ -454,20 +435,19 @@ def upload_files(project_id):
     except Exception as e:
         return handle_error(e, "Failed to upload files")
 
-
+# delete a file from a project
 @app.route('/api/files/<int:file_id>', methods=['DELETE'])
 @require_auth
 def delete_file(file_id):
     try:
         user_id = get_current_user_id()
 
-        # Delete from database (this also checks user permission)
+        # delete from db
         success, result = files_db.delete_file(file_id, user_id)
 
         if not success:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': result}}), 404
 
-        # result is the file_path, now delete the actual file from disk
         file_path = result
         try:
             if os.path.exists(file_path):
@@ -477,7 +457,6 @@ def delete_file(file_id):
                 print(f"⚠️ File not found: {file_path}")
         except Exception as file_error:
             print(f"⚠️ Could not delete file {file_path}: {file_error}")
-            # Don't fail the API call if physical file deletion fails
 
         return jsonify({
             'message': 'File deleted successfully',
@@ -488,49 +467,13 @@ def delete_file(file_id):
         return handle_error(e, "Failed to delete file")
 
 # ==============================
-# QUIZ GENERATION ENDPOINT (Your original functionality)
+# QUIZ GENERATION ENDPOINT
 # ==============================
 
-@app.route('/generate', methods=['POST'])
-def generate():
-    """Legacy quiz generation endpoint"""
-    try:
-        print('Made post request for quiz generation')
-        files = request.files.getlist('files')
-
-        saved_files = []
-        upload_folder = os.path.join(app.root_path, 'temp')
-        os.makedirs(upload_folder, exist_ok=True)
-
-        print('Received files')
-        for file in files:
-            filename = file.filename
-            filepath = os.path.join(upload_folder, filename)
-            file.save(filepath)
-            saved_files.append(filename)
-
-        filepaths = [os.path.join(upload_folder, filename) for filename in saved_files]
-        file_content = text_extractor.generate_plaintext(filepaths)
-        response = chatbot.generate_quiz_prompt(file_content)
-
-        # Save response for debugging
-        with open('temp/test.txt', 'w') as f:
-            f.write(response)
-
-        return jsonify({
-            "status": "success",
-            "message": f"Received {len(saved_files)} files.",
-            "quiz": response
-        })
-
-    except Exception as e:
-        return handle_error(e, "Failed to generate quiz")
-
-
+# generate a quiz!
 @app.route('/api/projects/<int:project_id>/quizzes/generate', methods=['POST'])
 @require_auth
 def generate_quiz_from_project(project_id):
-    """New API endpoint for generating quizzes from project files"""
     try:
         user_id = get_current_user_id()
 
@@ -544,32 +487,28 @@ def generate_quiz_from_project(project_id):
         question_count = data.get('question_count', 10)
         question_types = data.get('question_types', ['multiple-choice'])
 
-        # Get project files
         project_files = files_db.get_project_files(project_id)
 
         if not project_files:
             return jsonify({'error': {'code': 'NO_FILES', 'message': 'No files found in project'}}), 400
 
-        # Extract text content from files
         file_paths = [file['file_path'] for file in project_files]
         file_content = text_extractor.generate_plaintext(file_paths)
 
-        # Generate quiz using your LLM
         quiz_response = chatbot.generate_quiz_prompt(file_content, specifications={
             'difficulty': difficulty,
             'questions': question_count,
             'question_types': question_types
         })
 
-        # DELETETHISONDEPLOYMENT:
-        with open('temp/test.txt', 'w') as f:
-            f.write(quiz_response)
+        # JUST FOR TESTING PURPOSES:
+        # with open('temp/test.txt', 'w') as f:
+        #     f.write(quiz_response)
 
-        # Parse the response and create quiz in database
-        # You'll need to implement parsing logic based on your LLM output format
+        # parse response
         questions = parse_quiz_response(quiz_response, question_count, difficulty, question_types)
 
-        # Create quiz in database
+        # create quiz in db
         quiz_id = quizzes_db.create_quiz(project_id, title, difficulty, questions)
 
         return jsonify({
@@ -582,11 +521,11 @@ def generate_quiz_from_project(project_id):
     except Exception as e:
         return handle_error(e, "Failed to generate quiz")
 
-
 # ==============================
 # QUIZ ENDPOINTS
 # ==============================
 
+# retrieve quiz
 @app.route('/api/quizzes/<int:quiz_id>', methods=['GET'])
 @require_auth
 def get_quiz(quiz_id):
@@ -602,10 +541,10 @@ def get_quiz(quiz_id):
     except Exception as e:
         return handle_error(e, "Failed to get quiz")
 
+# retrieve quiz attempt details
 @app.route('/api/quiz-attempts/<int:attempt_id>', methods=['GET'])
 @require_auth
 def get_quiz_attempt_details(attempt_id):
-    """Get detailed information about a specific quiz attempt"""
     try:
         user_id = get_current_user_id()
 
@@ -618,21 +557,20 @@ def get_quiz_attempt_details(attempt_id):
     except Exception as e:
         return handle_error(e, "Failed to get quiz attempt details")
 
+# get analytics on performance for a quiz
 @app.route('/api/quizzes/<int:quiz_id>/analytics', methods=['GET'])
 @require_auth
 def get_quiz_analytics_api(quiz_id):
-    """Get comprehensive analytics for a specific quiz"""
     try:
         user_id = get_current_user_id()
 
-        # Verify user has access to this quiz
         quiz = quizzes_db.get_quiz_with_questions(quiz_id, user_id)
         if not quiz:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
 
-        # Get quiz attempt analytics
         analytics = quizzes_db.get_quiz_attempt_analytics(quiz_id, user_id)
 
+        # fallback in case something goes wrong
         if not analytics:
             return jsonify({
                 'total_attempts': 0,
@@ -652,17 +590,16 @@ def get_quiz_analytics_api(quiz_id):
     except Exception as e:
         return handle_error(e, "Failed to get quiz analytics")
 
+# get all quiz attempts for a project
 @app.route('/api/projects/<int:project_id>/quiz-attempts', methods=['GET'])
 @require_auth
 def get_project_quiz_attempts(project_id):
-    """Get all quiz attempts for a project"""
     try:
         user_id = get_current_user_id()
 
         if not db_utils.verify_project_ownership(project_id, user_id):
             return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}}), 403
 
-        # Get all quizzes for this project
         project_quizzes = quizzes_db.get_project_quizzes(project_id)
 
         all_attempts = []
@@ -673,7 +610,7 @@ def get_project_quiz_attempts(project_id):
                 attempt['quiz_id'] = quiz['id']
             all_attempts.extend(attempts)
 
-        # Sort by submission date (most recent first)
+        # sort by submission date (latest first)
         all_attempts.sort(key=lambda x: x['submitted_at'], reverse=True)
 
         return jsonify({
@@ -684,14 +621,13 @@ def get_project_quiz_attempts(project_id):
     except Exception as e:
         return handle_error(e, "Failed to get project quiz attempts")
 
+# delete a quiz
 @app.route('/api/quizzes/<int:quiz_id>', methods=['DELETE'])
 @require_auth
 def delete_quiz_api(quiz_id):
-    """Delete a quiz"""
     try:
         user_id = get_current_user_id()
 
-        # Delete the quiz (function checks user permission)
         success = quizzes_db.delete_quiz(quiz_id, user_id)
 
         if not success:
@@ -710,22 +646,22 @@ def delete_quiz_api(quiz_id):
     except Exception as e:
         return handle_error(e, "Failed to delete quiz")
 
+# get detailed quiz stats for a specific project
 @app.route('/api/projects/<int:project_id>/stats', methods=['GET'])
 @require_auth
 def get_project_stats_detailed(project_id):
-    """Get detailed quiz statistics for a specific project"""
     try:
         user_id = get_current_user_id()
 
         if not db_utils.verify_project_ownership(project_id, user_id):
             return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}}), 403
 
-        # Get all quizzes for this project
+        # get all quizzes for this project
         project_quizzes = quizzes_db.get_project_quizzes(project_id)
 
         quiz_stats = []
         for quiz in project_quizzes:
-            # Get attempts for this quiz
+            # get attempts for this quiz
             attempts = quizzes_db.get_quiz_attempts_history(quiz['id'], user_id)
 
             if attempts:
@@ -755,17 +691,17 @@ def get_project_stats_detailed(project_id):
     except Exception as e:
         return handle_error(e, "Failed to get project stats")
 
+# get analytics for all quizzes in a project
 @app.route('/api/projects/<int:project_id>/analytics', methods=['GET'])
 @require_auth
 def get_project_analytics_api(project_id):
-    """Get analytics for all quizzes in a project"""
     try:
         user_id = get_current_user_id()
 
         if not db_utils.verify_project_ownership(project_id, user_id):
             return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}}), 403
 
-        # Get all quizzes for this project
+        # get all quizzes for this project
         project_quizzes = quizzes_db.get_project_quizzes(project_id)
 
         analytics_data = {
@@ -774,7 +710,7 @@ def get_project_analytics_api(project_id):
             'quiz_analytics': []
         }
 
-        # Get analytics for each quiz
+        # get analytics for each quiz
         for quiz in project_quizzes:
             quiz_analytics = quizzes_db.get_quiz_attempt_analytics(quiz['id'], user_id)
             if quiz_analytics:
@@ -782,7 +718,7 @@ def get_project_analytics_api(project_id):
                 quiz_analytics['quiz_difficulty'] = quiz['difficulty']
                 analytics_data['quiz_analytics'].append(quiz_analytics)
 
-        # Calculate project-wide statistics
+        # calculate project-wide statistics
         if analytics_data['quiz_analytics']:
             total_attempts = sum(qa['total_attempts'] for qa in analytics_data['quiz_analytics'])
             avg_scores = [qa['avg_score'] for qa in analytics_data['quiz_analytics'] if qa['avg_score'] > 0]
@@ -854,6 +790,7 @@ def get_project_analytics_api(project_id):
     except Exception as e:
         return handle_error(e, "Failed to export quiz attempt")
 
+# submit a quiz for validation
 @app.route('/api/quizzes/<int:quiz_id>/submit', methods=['POST'])
 @require_auth
 def submit_quiz(quiz_id):
@@ -862,23 +799,23 @@ def submit_quiz(quiz_id):
         data = request.get_json()
 
         answers = data.get('answers', [])
-        use_llm_validation = data.get('use_llm_validation', True)  # Allow override
+        use_llm_validation = data.get('use_llm_validation', True)
 
-        # Get quiz with questions
+        # get quiz with questions
         quiz = quizzes_db.get_quiz_with_questions(quiz_id, user_id)
         if not quiz:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
 
-        # Get project files for LLM validation
+        # get project files for LLM validation
         project_files = files_db.get_project_files(quiz['project_id'])
 
         validation_results = None
 
         if use_llm_validation and project_files:
-            # Use LLM validation
+            # use LLM validation
             print("🤖 Using LLM-based answer validation...")
 
-            # Format answers for validation
+            # format answers for validation
             formatted_answers = []
             for answer in answers:
                 question = next((q for q in quiz['questions'] if q['id'] == answer['question_id']), None)
@@ -891,7 +828,7 @@ def submit_quiz(quiz_id):
                     }
                     formatted_answers.append(formatted_answer)
 
-            # Get LLM validation
+            # get LLM validation
             validation_results = answer_validator.validate_quiz_answers(
                 project_files=project_files,
                 questions=quiz['questions'],
@@ -899,12 +836,12 @@ def submit_quiz(quiz_id):
             )
 
             if not validation_results.get('error'):
-                # Use LLM results
+                # use LLM results
                 score = validation_results['overall_score']
                 correct_answers = validation_results['correct_answers']
                 results = validation_results['validation_results']
 
-                # Save attempt with detailed results
+                # save attempt with detailed results
                 attempt_id = quizzes_db.submit_quiz_attempt_with_validation(
                     quiz_id, user_id, answers, score, validation_results
                 )
@@ -928,7 +865,7 @@ def submit_quiz(quiz_id):
             user_answer = None
             user_answer_text = ""
 
-            # Find the user's answer for this question
+            # find the user's answer for this question
             for answer in answers:
                 if answer['question_id'] == question['id']:
                     user_answer = answer.get('selected_option')
@@ -940,7 +877,7 @@ def submit_quiz(quiz_id):
             score_percentage = 0
             feedback = ""
 
-            # Validate based on question type
+            # validate based on question type
             if question['type'] in ['multiple-choice', 'true-false']:
                 expected_answer = question.get('correct_answer', 0)
                 is_correct = (user_answer == expected_answer)
@@ -954,17 +891,17 @@ def submit_quiz(quiz_id):
                     feedback = f"Incorrect. The correct answer is: {correct_option}"
 
             elif question['type'] == 'short-answer':
-                # For short answers without LLM, give partial credit if answered
+                # for short answers without LLM, give partial credit if answered
                 if user_answer_text.strip():
-                    score_percentage = 75  # Give partial credit
+                    score_percentage = 75  # give partial credit
                     feedback = "Answer provided. Full validation requires manual review."
                 else:
                     feedback = "No answer provided."
 
             elif question['type'] == 'fill-in-blank':
-                # For fill-in-blank without LLM, give partial credit if any blanks filled
+                # for fill-in-blank without LLM, give partial credit if any blanks filled
                 if user_fill_answers and any(ans.strip() for ans in user_fill_answers):
-                    score_percentage = 75  # Give partial credit
+                    score_percentage = 75  # give partial credit
                     feedback = "Answer provided. Full validation requires manual review."
                 else:
                     feedback = "No answer provided."
@@ -982,14 +919,14 @@ def submit_quiz(quiz_id):
                 'feedback': feedback
             })
 
-        # Calculate overall score as average of individual question scores
+        # calculate overall score as average of individual question scores
         score = round(sum(individual_scores) / len(individual_scores)) if individual_scores else 0
 
-        # Calculate correct answers for display purposes
+        # calculate correct answers for display purposes
         correct_answers = sum(1 for s in individual_scores if s >= 100)
         total_correct_equivalent = correct_answers + (sum(s for s in individual_scores if 0 < s < 100) / 100)
 
-        # Save attempt
+        # save attempt
         attempt_id = quizzes_db.submit_quiz_attempt(quiz_id, user_id, answers, score)
 
         return jsonify({
@@ -1006,20 +943,19 @@ def submit_quiz(quiz_id):
     except Exception as e:
         return handle_error(e, "Failed to submit quiz")
 
-
+# get all attempts for a specific quiz by the current user
 @app.route('/api/quizzes/<int:quiz_id>/attempts', methods=['GET'])
 @require_auth
 def get_quiz_attempts_api(quiz_id):
-    """Get all attempts for a specific quiz by the current user"""
     try:
         user_id = get_current_user_id()
 
-        # Verify user has access to this quiz
+        # verify user has access to this quiz
         quiz = quizzes_db.get_quiz_with_questions(quiz_id, user_id)
         if not quiz:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
 
-        # Get attempts history
+        # get attempts history
         attempts = quizzes_db.get_quiz_attempts_history(quiz_id, user_id, limit=50)
 
         return jsonify({
@@ -1032,25 +968,24 @@ def get_quiz_attempts_api(quiz_id):
     except Exception as e:
         return handle_error(e, "Failed to get quiz attempts")
 
-
+# revalidate a quiz attempt for enhanced feedback
 @app.route('/api/quiz-attempts/<int:attempt_id>/revalidate', methods=['POST'])
 @require_auth
 def revalidate_quiz_attempt(attempt_id):
-    """Re-validate a quiz attempt using LLM for enhanced feedback"""
     try:
         user_id = get_current_user_id()
 
-        # Get the attempt
+        # get attempt
         attempt = quizzes_db.get_quiz_attempt(attempt_id, user_id)
         if not attempt:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz attempt not found'}}), 404
 
-        # Get the quiz with questions
+        # get quiz with questions
         quiz = quizzes_db.get_quiz_with_questions(attempt['quiz_id'], user_id)
         if not quiz:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
 
-        # Get project files for LLM validation
+        # get project files for LLM validation
         project_files = files_db.get_project_files(attempt['project_id'])
 
         if not project_files:
@@ -1058,7 +993,7 @@ def revalidate_quiz_attempt(attempt_id):
 
         print(f"🤖 Re-validating attempt {attempt_id} with LLM...")
 
-        # Format answers for validation
+        # format answers for validation
         formatted_answers = []
         for answer in attempt['answers']:
             question = next((q for q in quiz['questions'] if q['id'] == answer['question_id']), None)
@@ -1071,7 +1006,7 @@ def revalidate_quiz_attempt(attempt_id):
                 }
                 formatted_answers.append(formatted_answer)
 
-        # Get LLM validation
+        # get LLM validation
         validation_results = answer_validator.validate_quiz_answers(
             project_files=project_files,
             questions=quiz['questions'],
@@ -1081,11 +1016,11 @@ def revalidate_quiz_attempt(attempt_id):
         if validation_results.get('error'):
             return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': validation_results['error']}}), 500
 
-        # Update the attempt with new results
+        # update the attempt with new results
         new_score = validation_results['overall_score']
         old_score = attempt['score']
 
-        # Update in database
+        # update in database
         updated = quizzes_db.update_quiz_attempt_score(attempt_id, new_score, validation_results)
 
         if not updated:
@@ -1106,24 +1041,24 @@ def revalidate_quiz_attempt(attempt_id):
     except Exception as e:
         return handle_error(e, "Failed to re-validate quiz attempt")
 
+# export detailed quiz attempt results
 @app.route('/api/quiz-attempts/<int:attempt_id>/export', methods=['GET'])
 @require_auth
 def export_quiz_attempt(attempt_id):
-    """Export detailed quiz attempt results"""
     try:
         user_id = get_current_user_id()
 
-        # Get the attempt with all details
+        # get attempt with all details
         attempt = quizzes_db.get_quiz_attempt(attempt_id, user_id)
         if not attempt:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz attempt not found'}}), 404
 
-        # Get the quiz details
+        # get the quiz details
         quiz = quizzes_db.get_quiz_with_questions(attempt['quiz_id'], user_id)
         if not quiz:
             return jsonify({'error': {'code': 'NOT_FOUND', 'message': 'Quiz not found'}}), 404
 
-        # Create comprehensive export data
+        # create comprehensive export data
         export_data = {
             'attempt_info': {
                 'id': attempt['id'],
@@ -1142,7 +1077,7 @@ def export_quiz_attempt(attempt_id):
             'detailed_feedback': []
         }
 
-        # Add detailed feedback if available
+        # add detailed feedback if its available
         if attempt['validation_results'] and attempt['validation_results'].get('validation_results'):
             for result in attempt['validation_results']['validation_results']:
                 question = next((q for q in quiz['questions'] if q['id'] == result['question_id']), None)
@@ -1164,11 +1099,10 @@ def export_quiz_attempt(attempt_id):
     except Exception as e:
         return handle_error(e, "Failed to export quiz attempt")
 
-
+# get comprehensive quiz stats for current user
 @app.route('/api/user/quiz-statistics', methods=['GET'])
 @require_auth
 def get_user_quiz_statistics_api():
-    """Get comprehensive quiz statistics for the current user"""
     try:
         user_id = get_current_user_id()
         days = request.args.get('days', 30, type=int)
@@ -1184,18 +1118,9 @@ def get_user_quiz_statistics_api():
 # UTILITY FUNCTIONS
 # ==============================
 
+# used to be more complex but its simpler now
 def parse_quiz_response(quiz_response, question_count, difficulty, question_types):
-    """Parse the LLM response into structured questions"""
-    # This is a placeholder - you'll need to implement this based on your LLM output format
-    # For now, return sample questions
-    questions = []
-
-    # You could implement parsing logic here based on how your chatbot.generate_quiz_prompt returns data
-    # For example, if it returns JSON, you could parse it
-    # If it returns text, you'd need to extract questions, options, and answers
-
     return json.loads(quiz_response)['questions']
-
 
 # ==============================
 # ERROR HANDLERS
@@ -1211,7 +1136,6 @@ def not_found(error):
         }
     }), 404
 
-
 @app.errorhandler(500)
 def internal_error(error):
     return jsonify({
@@ -1222,10 +1146,8 @@ def internal_error(error):
         }
     }), 500
 
-
 if __name__ == '__main__':
-    # Create upload directories
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs('temp', exist_ok=True)
 
-    app.run(debug=True, host='0.0.0.0', port=6888)
+    app.run(debug=True, host='0.0.0.0', port=6900)
