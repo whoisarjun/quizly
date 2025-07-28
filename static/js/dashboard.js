@@ -9,7 +9,7 @@ class Dashboard {
         this.selectedFiles = [];
         this.maxFiles = 10;
         this.maxSize = 25 * 1024 * 1024; // 25MB
-        this.apiBase = '/api'; // Your Flask API base URL
+        this.apiBase = '/api';
 
         this.init();
     }
@@ -23,10 +23,11 @@ class Dashboard {
     // API UTILITY METHODS
     // ==============================
 
+    // ez way to make api calls
     async apiCall(endpoint, options = {}) {
         try {
             const response = await fetch(`${this.apiBase}${endpoint}`, {
-                credentials: 'include', // Include session cookies
+                credentials: 'include', // inclde session cookies 🍪
                 headers: {
                     'Content-Type': 'application/json',
                     ...options.headers
@@ -48,6 +49,7 @@ class Dashboard {
         }
     }
 
+    // upload files
     async uploadFiles(projectId, files) {
         const formData = new FormData();
         Array.from(files).forEach(file => {
@@ -78,11 +80,11 @@ class Dashboard {
     // DATA LOADING METHODS
     // ==============================
 
+    // get user details
     async loadUserData() {
         try {
             this.showLoading('Loading dashboard...');
 
-            // Load user profile, projects and stats in parallel
             const [userProfile, projectsData, statsData] = await Promise.all([
                 this.loadUserProfile(),
                 this.apiCall('/projects'),
@@ -100,24 +102,22 @@ class Dashboard {
         }
     }
 
+    // profile
     async loadUserProfile() {
         try {
             const userProfile = await this.apiCall('/user/profile');
 
-            // Update the display name in header
             const userDisplayName = document.getElementById('userDisplayName');
             if (userDisplayName) {
                 userDisplayName.textContent = `${userProfile.first_name} ${userProfile.last_name}`;
             }
 
-            // Update the welcome message
             const welcomeMessage = document.getElementById('welcomeMessage');
             if (welcomeMessage) {
                 welcomeMessage.textContent = `Welcome back, ${userProfile.first_name}!`;
             }
 
         } catch (error) {
-            // Fallback if profile loading fails
             const userDisplayName = document.getElementById('userDisplayName');
             if (userDisplayName) {
                 userDisplayName.textContent = 'User';
@@ -130,6 +130,7 @@ class Dashboard {
         }
     }
 
+    // load project
     async loadProject(projectId) {
         try {
             const project = await this.apiCall(`/projects/${projectId}`);
@@ -140,6 +141,7 @@ class Dashboard {
         }
     }
 
+    // toggle on/off quizzes tab depending on if files are uploaded or not
     updateQuizzesTabState() {
         const quizzesTabBtn = document.getElementById('quizzesTabBtn');
         const hasFiles = this.currentProject && this.currentProject.files && this.currentProject.files.length > 0;
@@ -157,6 +159,7 @@ class Dashboard {
     // PROJECT METHODS
     // ==============================
 
+    // create project
     async createNewProject() {
         const projectName = document.getElementById('projectName').value;
         const projectDesc = document.getElementById('projectDesc').value;
@@ -177,18 +180,15 @@ class Dashboard {
                 })
             });
 
-            // Add to local projects array
             this.projects.unshift(newProject);
             this.renderProjects();
 
-            // Close modal and reset form
             document.getElementById('newProjectModal').classList.remove('active');
             document.getElementById('newProjectForm').reset();
 
             this.hideLoading();
             this.showNotification('Project created successfully!', 'success');
 
-            // Refresh stats
             this.refreshStats();
 
         } catch (error) {
@@ -196,6 +196,7 @@ class Dashboard {
         }
     }
 
+    // open project
     async openProject(projectId) {
         try {
             this.showLoading('Loading project...');
@@ -205,18 +206,15 @@ class Dashboard {
 
             this.currentProject = project;
 
-            // Update modal title and form
             document.getElementById('projectTitle').textContent = project.name;
             document.getElementById('editProjectName').value = project.name;
             document.getElementById('editProjectDesc').value = project.description || '';
 
-            // Show modal and switch to files tab
             document.getElementById('projectModal').classList.add('active');
             this.switchTab('files');
             this.updateQuizzesTabState();
             document.getElementById('quizTitle').value = `${project.name} Quiz`;
 
-            // Render project content
             this.updateQuizzesTabState();
 
             this.hideLoading();
@@ -226,6 +224,7 @@ class Dashboard {
         }
     }
 
+    // update project
     async updateProject() {
         if (!this.currentProject) return;
 
@@ -253,6 +252,7 @@ class Dashboard {
         }
     }
 
+    // delete project
     async deleteProject() {
         if (!this.currentProject) return;
 
@@ -268,10 +268,8 @@ class Dashboard {
                 method: 'DELETE'
             });
 
-            // Remove from local data
             this.projects = this.projects.filter(p => p.id !== this.currentProject.id);
 
-            // Close modal
             document.getElementById('projectModal').classList.remove('active');
 
             this.renderProjects();
@@ -290,13 +288,13 @@ class Dashboard {
     // FILE METHODS
     // ==============================
 
+    // all the file stuff in the modal
     async handleModalFiles(files) {
         if (!this.currentProject) {
             this.showNotification('Please select a project first', 'warning');
             return;
         }
 
-        // Validate files
         const validFiles = [];
         Array.from(files).forEach(file => {
             if (validFiles.length >= this.maxFiles) {
@@ -324,7 +322,6 @@ class Dashboard {
             if (result.uploaded_files.length > 0) {
                 this.showNotification(`${result.uploaded_files.length} files uploaded successfully!`, 'success');
 
-                // Refresh project data
                 await this.refreshProjectWithStats();
             }
 
@@ -339,6 +336,7 @@ class Dashboard {
         this.updateQuizzesTabState();
     }
 
+    // refresh project with updates
     async refreshCurrentProject() {
         if (!this.currentProject) return;
 
@@ -348,7 +346,6 @@ class Dashboard {
                 this.currentProject = updatedProject;
                 this.renderProjectFiles();
 
-                // Update projects list
                 const projectIndex = this.projects.findIndex(p => p.id === this.currentProject.id);
                 if (projectIndex !== -1) {
                     this.projects[projectIndex] = {
@@ -359,11 +356,10 @@ class Dashboard {
                 }
                 this.renderProjects();
             }
-        } catch (error) {
-            // Error already handled
-        }
+        } catch (error) {}
     }
 
+    // refresh project stats
     async refreshProjectWithStats() {
         if (!this.currentProject) return;
 
@@ -374,7 +370,6 @@ class Dashboard {
             ]);
 
             if (updatedProject) {
-                // Merge project data with stats
                 if (projectStats && projectStats.quizzes) {
                     updatedProject.quizzes = updatedProject.quizzes?.map(quiz => {
                         const quizStats = projectStats.quizzes.find(s => s.quiz_id === quiz.id);
@@ -395,7 +390,6 @@ class Dashboard {
                 this.renderProjectFiles();
                 this.renderProjectQuizzes();
 
-                // Update projects list
                 const projectIndex = this.projects.findIndex(p => p.id === this.currentProject.id);
                 if (projectIndex !== -1) {
                     this.projects[projectIndex] = {
@@ -408,14 +402,13 @@ class Dashboard {
             }
         } catch (error) {
             console.error('Failed to refresh project with stats:', error);
-            // Fallback to basic refresh
             await this.refreshCurrentProject();
         }
     }
 
+    // remove files
     async removeFile(fileId, isSelected = false) {
         if (isSelected) {
-            // Handle selected files (before upload)
             this.selectedFiles = this.selectedFiles.filter(f => f.id !== fileId);
             this.renderSelectedFiles();
             return;
@@ -431,13 +424,12 @@ class Dashboard {
             this.showNotification('File deleted successfully!', 'success');
             await this.refreshProjectWithStats();
 
-        } catch (error) {
-            // Error already handled
-        }
+        } catch (error) {}
 
         this.updateQuizzesTabState();
     }
 
+    // show the files
     renderProjectFiles() {
         if (!this.currentProject) return;
 
@@ -460,6 +452,7 @@ class Dashboard {
     // QUIZ METHODS
     // ==============================
 
+    // generate a quiz
     async generateQuiz() {
         if (!this.currentProject || !this.currentProject.files || this.currentProject.files.length === 0) {
             this.showNotification('Please add files to the project first', 'warning');
@@ -494,7 +487,6 @@ class Dashboard {
             this.hideLoading();
             this.showNotification('Quiz generated successfully!', 'success');
 
-            // Refresh project data to show new quiz
             await this.refreshProjectWithStats();
             this.renderProjectQuizzes();
 
@@ -503,42 +495,40 @@ class Dashboard {
         }
     }
 
+    // do the quiz
     async takeQuiz(quizId) {
-    try {
-        this.showLoading('Loading quiz...');
+        try {
+            this.showLoading('Loading quiz...');
 
-        // IMPORTANT: Reset quiz state completely before loading new quiz
-        this.resetQuizState();
+            this.resetQuizState();
 
-        const quiz = await this.apiCall(`/quizzes/${quizId}`);
+            const quiz = await this.apiCall(`/quizzes/${quizId}`);
 
-        this.currentQuiz = quiz;
-        this.currentQuestionIndex = 0;
-        this.userAnswers = new Array(quiz.questions.length).fill(null);
+            this.currentQuiz = quiz;
+            this.currentQuestionIndex = 0;
+            this.userAnswers = new Array(quiz.questions.length).fill(null);
 
-        // Reset the modal body to ensure clean state
-        this.resetQuizModalBody();
+            this.resetQuizModalBody();
 
-        // Show quiz modal
-        document.getElementById('quizTakingModal').classList.add('active');
-        document.getElementById('quizTakingTitle').textContent = quiz.title;
+            document.getElementById('quizTakingModal').classList.add('active');
+            document.getElementById('quizTakingTitle').textContent = quiz.title;
 
-        this.renderCurrentQuestion();
-        this.updateQuizProgress();
-        this.hideLoading();
+            this.renderCurrentQuestion();
+            this.updateQuizProgress();
+            this.hideLoading();
 
-    } catch (error) {
-        this.hideLoading();
+        } catch (error) {
+            this.hideLoading();
+        }
     }
-}
 
+    // submit a quiz
     async submitQuiz() {
         if (!this.currentQuiz) return;
 
         try {
             this.showLoading('Submitting quiz...');
 
-            // Prepare answers in the format expected by API
             const answers = [];
             this.currentQuiz.questions.forEach((question, index) => {
                 if (this.userAnswers[index] !== null) {
@@ -557,7 +547,6 @@ class Dashboard {
             this.hideLoading();
             this.showQuizResults(result.score, result.correct_answers, result.results);
 
-            // Refresh stats
             this.refreshStats();
 
         } catch (error) {
@@ -565,6 +554,7 @@ class Dashboard {
         }
     }
 
+    // delete a quiz 👋
     async deleteQuiz(quizId) {
         if (!confirm('Are you sure you want to delete this quiz? This action cannot be undone.')) {
             return;
@@ -579,17 +569,14 @@ class Dashboard {
             await this.refreshProjectWithStats();
             this.renderProjectQuizzes();
 
-        } catch (error) {
-            // Error already handled
-        }
+        } catch (error) {}
     }
 
+    // download a quiz as txt
     async downloadQuiz(quizId) {
         try {
             this.showLoading('Generating PDF...');
 
-            // For now, we'll create a simple text download
-            // In production, your Flask endpoint would return a PDF
             const quiz = await this.apiCall(`/quizzes/${quizId}`);
 
             let content = `${quiz.title}\n`;
@@ -627,12 +614,14 @@ class Dashboard {
         }
     }
 
+    // reset the quiz
     resetQuizState() {
         this.currentQuiz = null;
         this.currentQuestionIndex = 0;
         this.userAnswers = [];
     }
 
+    // reset modal
     resetQuizModalBody() {
         const modal = document.getElementById('quizTakingModal');
         const body = modal.querySelector('.modal-body');
@@ -655,11 +644,11 @@ class Dashboard {
                 </div>
             `;
 
-            // Re-bind events after resetting HTML
             this.bindQuizModalEvents();
         }
     }
 
+    // show all the quizzes
     renderProjectQuizzes() {
         if (!this.currentProject) return;
 
@@ -682,6 +671,7 @@ class Dashboard {
     // QUICK QUIZ METHOD
     // ==============================
 
+    // quick quiz button on the project card (latest quiz generated)
     async quickQuiz(projectId) {
         try {
             const project = await this.loadProject(projectId);
@@ -690,20 +680,18 @@ class Dashboard {
                 return;
             }
 
-            // Take the most recent quiz
             const latestQuiz = project.quizzes[project.quizzes.length - 1];
             this.currentProject = project;
             await this.takeQuiz(latestQuiz.id);
 
-        } catch (error) {
-            // Error already handled
-        }
+        } catch (error) {}
     }
 
     // ==============================
     // STATS AND UI METHODS
     // ==============================
 
+    // update stats
     updateStatsFromAPI(statsData) {
         const statCards = document.querySelectorAll('.stat-card .stat-content h3');
         if (statCards.length >= 4) {
@@ -714,13 +702,12 @@ class Dashboard {
         }
     }
 
+    // refresh stats
     async refreshStats() {
         try {
             const statsData = await this.apiCall('/dashboard/stats');
             this.updateStatsFromAPI(statsData);
-        } catch (error) {
-            // Error already handled
-        }
+        } catch (error) {}
     }
 
     // ==============================
@@ -728,7 +715,6 @@ class Dashboard {
     // ==============================
 
     bindEvents() {
-        // User menu toggle
         const userMenuBtn = document.getElementById('userMenuBtn');
         const userDropdown = document.getElementById('userDropdown');
 
@@ -743,7 +729,6 @@ class Dashboard {
             });
         }
 
-        // New project modal
         const newProjectBtn = document.getElementById('newProjectBtn');
         const newProjectModal = document.getElementById('newProjectModal');
         const closeModal = document.getElementById('closeModal');
@@ -803,7 +788,6 @@ class Dashboard {
             });
         }
 
-        // Tab switching
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const tabName = btn.getAttribute('data-tab');
@@ -811,10 +795,8 @@ class Dashboard {
             });
         });
 
-        // Modal file upload
         this.bindModalFileUpload();
 
-        // Quiz generation
         const generateQuizBtn = document.getElementById('generateQuizBtn');
         if (generateQuizBtn) {
             generateQuizBtn.addEventListener('click', () => {
@@ -822,7 +804,6 @@ class Dashboard {
             });
         }
 
-        // Delete project
         const deleteProjectBtn = document.getElementById('deleteProjectBtn');
         if (deleteProjectBtn) {
             deleteProjectBtn.addEventListener('click', () => {
@@ -830,7 +811,6 @@ class Dashboard {
             });
         }
 
-        // Update project
         const updateProjectBtn = document.getElementById('updateProjectBtn');
         if (updateProjectBtn) {
             updateProjectBtn.addEventListener('click', () => {
@@ -855,7 +835,6 @@ class Dashboard {
             modalUploadZone.addEventListener('click', () => modalFileInput.click());
         }
 
-        // Drag and drop
         if (modalUploadZone) {
             modalUploadZone.addEventListener('dragover', (e) => {
                 e.preventDefault();
@@ -881,59 +860,55 @@ class Dashboard {
     }
 
     bindQuizModalEvents() {
-    const closeQuizModal = document.getElementById('closeQuizModal');
-    const quizTakingModal = document.getElementById('quizTakingModal');
-    const prevQuestion = document.getElementById('prevQuestion');
-    const nextQuestion = document.getElementById('nextQuestion');
-    const submitQuiz = document.getElementById('submitQuiz');
+        const closeQuizModal = document.getElementById('closeQuizModal');
+        const quizTakingModal = document.getElementById('quizTakingModal');
+        const prevQuestion = document.getElementById('prevQuestion');
+        const nextQuestion = document.getElementById('nextQuestion');
+        const submitQuiz = document.getElementById('submitQuiz');
 
-    // Remove existing event listeners to prevent duplicates
-    if (closeQuizModal) {
-        // Clone node to remove all event listeners
-        const newCloseBtn = closeQuizModal.cloneNode(true);
-        closeQuizModal.parentNode.replaceChild(newCloseBtn, closeQuizModal);
+        if (closeQuizModal) {
+            const newCloseBtn = closeQuizModal.cloneNode(true);
+            closeQuizModal.parentNode.replaceChild(newCloseBtn, closeQuizModal);
 
-        newCloseBtn.addEventListener('click', () => {
-            this.closeQuizModal();
-        });
+            newCloseBtn.addEventListener('click', () => {
+                this.closeQuizModal();
+            });
+        }
+
+        if (prevQuestion) {
+            const newPrevBtn = prevQuestion.cloneNode(true);
+            prevQuestion.parentNode.replaceChild(newPrevBtn, prevQuestion);
+
+            newPrevBtn.addEventListener('click', () => {
+                this.previousQuestion();
+            });
+        }
+
+        if (nextQuestion) {
+            const newNextBtn = nextQuestion.cloneNode(true);
+            nextQuestion.parentNode.replaceChild(newNextBtn, nextQuestion);
+
+            newNextBtn.addEventListener('click', () => {
+                this.nextQuestion();
+            });
+        }
+
+        if (submitQuiz) {
+            const newSubmitBtn = submitQuiz.cloneNode(true);
+            submitQuiz.parentNode.replaceChild(newSubmitBtn, submitQuiz);
+
+            newSubmitBtn.addEventListener('click', () => {
+                this.submitQuiz();
+            });
+        }
     }
-
-    if (prevQuestion) {
-        const newPrevBtn = prevQuestion.cloneNode(true);
-        prevQuestion.parentNode.replaceChild(newPrevBtn, prevQuestion);
-
-        newPrevBtn.addEventListener('click', () => {
-            this.previousQuestion();
-        });
-    }
-
-    if (nextQuestion) {
-        const newNextBtn = nextQuestion.cloneNode(true);
-        nextQuestion.parentNode.replaceChild(newNextBtn, nextQuestion);
-
-        newNextBtn.addEventListener('click', () => {
-            this.nextQuestion();
-        });
-    }
-
-    if (submitQuiz) {
-        const newSubmitBtn = submitQuiz.cloneNode(true);
-        submitQuiz.parentNode.replaceChild(newSubmitBtn, submitQuiz);
-
-        newSubmitBtn.addEventListener('click', () => {
-            this.submitQuiz();
-        });
-    }
-}
 
     bindModalOverlayEvents() {
-        // Close modals on overlay click, but reset quiz state for quiz modal
         document.querySelectorAll('.modal-overlay').forEach(overlay => {
             overlay.addEventListener('click', (e) => {
                 if (e.target === overlay) {
                     overlay.classList.remove('active');
 
-                    // Special handling for quiz modal
                     if (overlay.id === 'quizTakingModal') {
                         setTimeout(() => {
                             this.resetQuiz();
@@ -948,6 +923,7 @@ class Dashboard {
     // UI RENDERING METHODS
     // ==============================
 
+    // show projects
     renderProjects() {
         const projectsGrid = document.getElementById('projectsGrid');
         if (!projectsGrid) return;
@@ -960,6 +936,7 @@ class Dashboard {
         });
     }
 
+    // project card
     createProjectCard(project) {
         const card = document.createElement('div');
         card.className = 'project-card';
@@ -1011,6 +988,7 @@ class Dashboard {
         return card;
     }
 
+    // file bubble
     createFileItem(file, fileId, isSelected = false) {
         const item = document.createElement('div');
         item.className = 'file-item';
@@ -1049,6 +1027,7 @@ class Dashboard {
         return item;
     }
 
+    // quiz bubble
     createQuizItem(quiz) {
         const item = document.createElement('div');
         item.className = 'quiz-item';
@@ -1090,7 +1069,6 @@ class Dashboard {
             return 'fa-thumbs-down';
         };
 
-        // FIX: Ensure we have proper data with fallbacks
         const attemptCount = quiz.attempt_count || quiz.attempts || 0;
         const bestScore = quiz.best_score || quiz.last_score || quiz.highest_score || 0;
         const avgScore = quiz.avg_score || quiz.average_score || bestScore;
@@ -1220,7 +1198,6 @@ class Dashboard {
             </div>
         `;
 
-        // Process LaTeX in quiz title and other content
         this.processLatexInElement(item);
 
         return item;
@@ -1230,34 +1207,33 @@ class Dashboard {
     // QUIZ UI METHODS
     // ==============================
 
+    // switch tabs
     switchTab(tabName) {
-    // Check if trying to switch to disabled quizzes tab
-    if (tabName === 'quizzes') {
-        const quizzesTabBtn = document.getElementById('quizzesTabBtn');
-        if (quizzesTabBtn && quizzesTabBtn.classList.contains('disabled')) {
-            return; // Don't switch
+        if (tabName === 'quizzes') {
+            const quizzesTabBtn = document.getElementById('quizzesTabBtn');
+            if (quizzesTabBtn && quizzesTabBtn.classList.contains('disabled')) {
+                return; // dont switch
+            }
+        }
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const targetTab = document.querySelector(`[data-tab="${tabName}"]`);
+        if (targetTab) {
+            targetTab.classList.add('active');
+        }
+
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        const targetContent = document.getElementById(`${tabName}Tab`);
+        if (targetContent) {
+            targetContent.classList.add('active');
         }
     }
 
-    // Update tab buttons
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    const targetTab = document.querySelector(`[data-tab="${tabName}"]`);
-    if (targetTab) {
-        targetTab.classList.add('active');
-    }
-
-    // Update tab content
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-    });
-    const targetContent = document.getElementById(`${tabName}Tab`);
-    if (targetContent) {
-        targetContent.classList.add('active');
-    }
-}
-
+    // question view
     renderCurrentQuestion() {
         if (!this.currentQuiz) return;
 
@@ -1414,15 +1390,15 @@ class Dashboard {
             </div>
         `;
 
-        // Process LaTeX in the rendered content
+        // process latex
         this.processLatexInElement(container);
 
-        // Set up preview for short answer questions
         if (question.type === 'short-answer') {
             this.setupAnswerPreview();
         }
     }
 
+    // select fill in blank
     selectFillInAnswer(blankIndex, value) {
         if (!Array.isArray(this.userAnswers[this.currentQuestionIndex])) {
             this.userAnswers[this.currentQuestionIndex] = [];
@@ -1430,10 +1406,10 @@ class Dashboard {
         this.userAnswers[this.currentQuestionIndex][blankIndex] = value.trim();
     }
 
+    // select text
     selectTextAnswer(value) {
         this.userAnswers[this.currentQuestionIndex] = value.trim();
 
-        // Update preview if it exists
         const previewContent = document.querySelector('.preview-content');
         if (previewContent) {
             const processed = this.processLatexInText(value);
@@ -1441,15 +1417,16 @@ class Dashboard {
         }
     }
 
+    // select ans
     selectAnswer(answerIndex) {
         this.userAnswers[this.currentQuestionIndex] = answerIndex;
 
-        // Update visual selection for radio buttons only
         document.querySelectorAll('.option-item').forEach((item, index) => {
             item.classList.toggle('selected', index === answerIndex);
         });
     }
 
+    // preview (for latex stuff)
     setupAnswerPreview() {
         const textarea = document.querySelector('.answer-textarea');
         const previewContent = document.querySelector('.preview-content');
@@ -1460,14 +1437,13 @@ class Dashboard {
                 previewContent.innerHTML = processed || '<em>Your answer preview will appear here...</em>';
             };
 
-            // Initial preview
             updatePreview();
 
-            // Update on input
             textarea.addEventListener('input', updatePreview);
         }
     }
 
+    // go back to prev question
     previousQuestion() {
         if (this.currentQuestionIndex > 0) {
             this.currentQuestionIndex--;
@@ -1477,6 +1453,7 @@ class Dashboard {
         }
     }
 
+    // go to next question
     nextQuestion() {
         if (this.currentQuestionIndex < this.currentQuiz.questions.length - 1) {
             this.currentQuestionIndex++;
@@ -1486,6 +1463,7 @@ class Dashboard {
         }
     }
 
+    // progress bar
     updateQuizProgress() {
         const progressFill = document.getElementById('progressFill');
         const questionProgress = document.getElementById('questionProgress');
@@ -1499,6 +1477,7 @@ class Dashboard {
         this.updateNavigationButtons();
     }
 
+    // nav buttons
     updateNavigationButtons() {
         const prevBtn = document.getElementById('prevQuestion');
         const nextBtn = document.getElementById('nextQuestion');
@@ -1519,6 +1498,7 @@ class Dashboard {
         }
     }
 
+    // quiz results
     showQuizResults(score, correctAnswers, results = null) {
         const modal = document.getElementById('quizTakingModal');
         const body = modal.querySelector('.modal-body');
@@ -1548,67 +1528,67 @@ class Dashboard {
         `;
     }
 
+    // redo quiz
     retakeQuiz() {
-    if (!this.currentQuiz) return;
+        if (!this.currentQuiz) return;
 
-    // Reset answers but keep the same quiz
-    this.currentQuestionIndex = 0;
-    this.userAnswers = new Array(this.currentQuiz.questions.length).fill(null);
+        this.currentQuestionIndex = 0;
+        this.userAnswers = new Array(this.currentQuiz.questions.length).fill(null);
 
-    // Reset modal body
-    this.resetQuizModalBody();
+        this.resetQuizModalBody();
 
-    this.renderCurrentQuestion();
-    this.updateQuizProgress();
-}
-
-    closeQuizModal() {
-    const modal = document.getElementById('quizTakingModal');
-    modal.classList.remove('active');
-
-    // Add a small delay to ensure modal is closed before resetting
-    setTimeout(() => {
-        this.resetQuiz();
-    }, 300);
-}
-
-    resetQuiz() {
-    this.resetQuizState();
-    this.resetQuizModalBody();
-}
-
-    async toggleQuizHistory(quizId, button) {
-    const historyDiv = document.getElementById(`history-${quizId}`);
-    const historyContent = historyDiv.querySelector('.history-content');
-    const loadingDiv = historyDiv.querySelector('.history-loading');
-    const icon = button.querySelector('i');
-
-    if (historyDiv.style.display === 'none') {
-        // Show history
-        historyDiv.style.display = 'block';
-        icon.className = 'fas fa-chevron-up';
-        button.innerHTML = '<i class="fas fa-chevron-up"></i> Hide History';
-
-        // FIX: Always load attempts when showing history, don't wait for manual refresh
-        try {
-            loadingDiv.style.display = 'block';
-            historyContent.innerHTML = ''; // Clear any old content
-
-            const attempts = await this.getQuizAttempts(quizId);
-            this.renderQuizHistory(historyContent, attempts);
-            loadingDiv.style.display = 'none';
-        } catch (error) {
-            loadingDiv.style.display = 'none';
-            historyContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load history</p>';
-        }
-    } else {
-        // Hide history
-        historyDiv.style.display = 'none';
-        icon.className = 'fas fa-history';
-        button.innerHTML = '<i class="fas fa-history"></i> History';
+        this.renderCurrentQuestion();
+        this.updateQuizProgress();
     }
-}
 
+    // close modal
+    closeQuizModal() {
+        const modal = document.getElementById('quizTakingModal');
+        modal.classList.remove('active');
+
+        // Add a small delay to ensure modal is closed before resetting
+        setTimeout(() => {
+            this.resetQuiz();
+        }, 300);
+    }
+
+    // reset quiz state
+    resetQuiz() {
+        this.resetQuizState();
+        this.resetQuizModalBody();
+    }
+
+    // toggle history for each quiz
+    async toggleQuizHistory(quizId, button) {
+        const historyDiv = document.getElementById(`history-${quizId}`);
+        const historyContent = historyDiv.querySelector('.history-content');
+        const loadingDiv = historyDiv.querySelector('.history-loading');
+        const icon = button.querySelector('i');
+
+        if (historyDiv.style.display === 'none') {
+            historyDiv.style.display = 'block';
+            icon.className = 'fas fa-chevron-up';
+            button.innerHTML = '<i class="fas fa-chevron-up"></i> Hide History';
+
+            try {
+                loadingDiv.style.display = 'block';
+                historyContent.innerHTML = '';
+
+                const attempts = await this.getQuizAttempts(quizId);
+                this.renderQuizHistory(historyContent, attempts);
+                loadingDiv.style.display = 'none';
+            } catch (error) {
+                loadingDiv.style.display = 'none';
+                historyContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load history</p>';
+            }
+        } else {
+            historyDiv.style.display = 'none';
+            icon.className = 'fas fa-history';
+            button.innerHTML = '<i class="fas fa-history"></i> History';
+        }
+    }
+
+    // get quiz attempts
     async getQuizAttempts(quizId) {
         try {
             const response = await this.apiCall(`/quizzes/${quizId}/attempts`);
@@ -1619,6 +1599,7 @@ class Dashboard {
         }
     }
 
+    // show history
     renderQuizHistory(container, attempts) {
         if (!attempts || attempts.length === 0) {
             container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No attempts yet</p>';
@@ -1633,6 +1614,7 @@ class Dashboard {
         });
     }
 
+    // create an attempt for viewing
     createAttemptItem(attempt, attemptNumber) {
         const item = document.createElement('div');
         item.className = 'attempt-item';
@@ -1718,6 +1700,7 @@ class Dashboard {
         return item;
     }
 
+    // attempt loading
     async viewAttemptDetails(attemptId) {
         try {
             this.showLoading('Loading attempt details...');
@@ -1733,8 +1716,8 @@ class Dashboard {
         }
     }
 
+    // attempt details modal
     showAttemptDetailsModal(attempt) {
-        // Create and show a modal with detailed attempt information
         const modal = document.createElement('div');
         modal.className = 'modal-overlay attempt-details-modal';
         modal.style.zIndex = '10000';
@@ -1769,10 +1752,8 @@ class Dashboard {
         document.body.appendChild(modal);
         modal.classList.add('active');
 
-        // Process LaTeX in the modal content
         this.processLatexInElement(modal);
 
-        // Close on overlay click
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 modal.remove();
@@ -1780,6 +1761,7 @@ class Dashboard {
         });
     }
 
+    // detailed results view
     renderDetailedResults(results) {
         if (!results || results.length === 0) {
             return '<p>No detailed results available.</p>';
@@ -1832,6 +1814,7 @@ class Dashboard {
         return html;
     }
 
+    // color coding for quiz scores
     getScoreColor(score) {
         if (score >= 90) return '#10b981';
         if (score >= 80) return '#22c55e';
@@ -1840,6 +1823,7 @@ class Dashboard {
         return '#ef4444';
     }
 
+    // revalidate button
     async revalidateQuizAttempt(attemptId) {
         try {
             this.showLoading('Re-validating with AI...');
@@ -1851,7 +1835,6 @@ class Dashboard {
             this.hideLoading();
             this.showNotification('Re-validation complete!', 'success');
 
-            // Refresh the quiz list to show updated results
             if (this.currentProject) {
                 await this.refreshProjectWithStats();
                 this.renderProjectQuizzes();
@@ -1863,13 +1846,13 @@ class Dashboard {
         }
     }
 
+    // download attempt as txt
     async downloadAttemptResults(attemptId) {
         try {
             this.showLoading('Generating results...');
 
             const attempt = await this.apiCall(`/quiz-attempts/${attemptId}`);
 
-            // Create downloadable content
             let content = `QUIZ ATTEMPT RESULTS\n`;
             content += `===================\n\n`;
             content += `Quiz: ${attempt.quiz_title}\n`;
@@ -1899,7 +1882,6 @@ class Dashboard {
                 });
             }
 
-            // Download the file
             const blob = new Blob([content], { type: 'text/plain' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -1919,6 +1901,7 @@ class Dashboard {
         }
     }
 
+    // score -> letter grade
     getScoreGrade(score) {
         if (score >= 90) return 'A';
         if (score >= 80) return 'B';
@@ -1927,33 +1910,32 @@ class Dashboard {
         return 'F';
     }
 
+    // analytics toggle for quizzes
     async showQuizAnalytics(quizId) {
-    const analyticsDiv = document.getElementById(`analytics-${quizId}`);
-    const analyticsContent = analyticsDiv.querySelector('.analytics-content');
-    const loadingDiv = analyticsDiv.querySelector('.analytics-loading');
+        const analyticsDiv = document.getElementById(`analytics-${quizId}`);
+        const analyticsContent = analyticsDiv.querySelector('.analytics-content');
+        const loadingDiv = analyticsDiv.querySelector('.analytics-loading');
 
-    if (analyticsDiv.style.display === 'none') {
-        // Show analytics
-        analyticsDiv.style.display = 'block';
+        if (analyticsDiv.style.display === 'none') {
+            analyticsDiv.style.display = 'block';
 
-        // FIX: Always load analytics when showing, don't wait for manual action
-        try {
-            loadingDiv.style.display = 'block';
-            analyticsContent.innerHTML = ''; // Clear any old content
+            try {
+                loadingDiv.style.display = 'block';
+                analyticsContent.innerHTML = '';
 
-            const analytics = await this.getQuizAnalytics(quizId);
-            this.renderQuizAnalytics(analyticsContent, analytics);
-            loadingDiv.style.display = 'none';
-        } catch (error) {
-            loadingDiv.style.display = 'none';
-            analyticsContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load analytics</p>';
+                const analytics = await this.getQuizAnalytics(quizId);
+                this.renderQuizAnalytics(analyticsContent, analytics);
+                loadingDiv.style.display = 'none';
+            } catch (error) {
+                loadingDiv.style.display = 'none';
+                analyticsContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load analytics</p>';
+            }
+        } else {
+            analyticsDiv.style.display = 'none';
         }
-    } else {
-        // Hide analytics
-        analyticsDiv.style.display = 'none';
     }
-}
 
+    // retrieve analytics
     async getQuizAnalytics(quizId) {
         try {
             const response = await this.apiCall(`/quizzes/${quizId}/analytics`);
@@ -1964,6 +1946,7 @@ class Dashboard {
         }
     }
 
+    // show analytics
     renderQuizAnalytics(container, analytics) {
         if (!analytics) {
             container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No analytics data available</p>';
@@ -2062,6 +2045,7 @@ class Dashboard {
         `;
     }
 
+    // analytics -> insights
     generateInsights(analytics) {
         const insights = [];
 
@@ -2069,7 +2053,7 @@ class Dashboard {
             return [{ type: 'info', icon: 'fa-info-circle', text: 'Take your first attempt to get personalized insights!' }];
         }
 
-        // Performance insights
+        // performance insights
         if (analytics.best_score >= 95) {
             insights.push({ type: 'success', icon: 'fa-star', text: 'Outstanding mastery of this topic!' });
         } else if (analytics.best_score >= 85) {
@@ -2078,21 +2062,21 @@ class Dashboard {
             insights.push({ type: 'warning', icon: 'fa-book-open', text: 'Consider reviewing the material more thoroughly.' });
         }
 
-        // Improvement trend insights
+        // improvement trend insights
         if (analytics.improvement_trend > 5) {
             insights.push({ type: 'success', icon: 'fa-arrow-up', text: 'Great improvement trend! Keep it up!' });
         } else if (analytics.improvement_trend < -5) {
             insights.push({ type: 'warning', icon: 'fa-arrow-down', text: 'Scores are declining. Take a break and review.' });
         }
 
-        // Consistency insights
+        // consistency insights
         if (analytics.consistency_score >= 80) {
             insights.push({ type: 'success', icon: 'fa-check-circle', text: 'Very consistent performance across attempts.' });
         } else if (analytics.consistency_score < 50) {
             insights.push({ type: 'info', icon: 'fa-exclamation-triangle', text: 'Performance varies significantly between attempts.' });
         }
 
-        // Attempt frequency insights
+        // attempt frequency insights
         if (analytics.total_attempts === 1) {
             insights.push({ type: 'info', icon: 'fa-play', text: 'Try taking the quiz again to track your progress!' });
         } else if (analytics.total_attempts > 10) {
@@ -2107,6 +2091,7 @@ class Dashboard {
         return insights.length > 0 ? insights : [{ type: 'info', icon: 'fa-chart-bar', text: 'Keep taking attempts to unlock more insights!' }];
     }
 
+    // refresh quiz history
     async refreshQuizHistory(quizId) {
         const historyContent = document.querySelector(`#history-${quizId} .history-content`);
         const loadingDiv = document.querySelector(`#history-${quizId} .history-loading`);
@@ -2126,6 +2111,7 @@ class Dashboard {
         }
     }
 
+    // export history
     async exportQuizHistory(quizId) {
         try {
             this.showLoading('Exporting quiz history...');
@@ -2139,7 +2125,6 @@ class Dashboard {
                 return;
             }
 
-            // Create comprehensive export content
             let content = `QUIZ HISTORY EXPORT\n`;
             content += `==================\n\n`;
             content += `Quiz: ${quiz?.title || 'Unknown Quiz'}\n`;
@@ -2158,7 +2143,6 @@ class Dashboard {
                 content += `\n`;
             });
 
-            // Add performance summary
             const scores = attempts.map(a => a.score);
             const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
             const bestScore = Math.max(...scores);
@@ -2171,7 +2155,6 @@ class Dashboard {
             content += `Lowest Score: ${worstScore}%\n`;
             content += `Improvement: ${(bestScore - worstScore).toFixed(1)}%\n`;
 
-            // Download the file
             const blob = new Blob([content], { type: 'text/plain' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -2191,6 +2174,7 @@ class Dashboard {
         }
     }
 
+    // just for debugging
     debugQuizState() {
         console.log('Current Quiz State:', {
             currentQuiz: this.currentQuiz,
@@ -2273,6 +2257,7 @@ class Dashboard {
         }, 5000);
     }
 
+    // quizper now supports latex!!!
     processLatexInText(text) {
         if (!text || typeof text !== 'string') return text;
 
@@ -2358,7 +2343,7 @@ class Dashboard {
     // BONUS FEATURES
     // ==============================
 
-    // Search functionality
+    // search functionality
     async searchProjects(query) {
         try {
             const response = await this.apiCall(`/projects/search?q=${encodeURIComponent(query)}`);
@@ -2370,12 +2355,10 @@ class Dashboard {
                 const projectCard = this.createProjectCard(project);
                 projectsGrid.appendChild(projectCard);
             });
-        } catch (error) {
-            // Error already handled
-        }
+        } catch (error) {}
     }
 
-    // Analytics functionality
+    // analytics functionality
     async getProjectAnalytics(projectId) {
         try {
             const analytics = await this.apiCall(`/projects/${projectId}/analytics`);
@@ -2385,7 +2368,7 @@ class Dashboard {
         }
     }
 
-    // Export functionality
+    // export functionality
     async exportProject(projectId) {
         try {
             this.showLoading('Exporting project...');
@@ -2407,15 +2390,13 @@ class Dashboard {
         } catch (error) {
             this.hideLoading();
         }
-
-        // Updated quiz submission methods for dashboard.js
     }
 
+    // enhanced quiz results
     showEnhancedQuizResults(result) {
         const modal = document.getElementById('quizTakingModal');
         const body = modal.querySelector('.modal-body');
 
-        // Store the original modal body HTML before showing results
         if (!this.originalQuizModalBody) {
             this.originalQuizModalBody = `
                 <div class="quiz-progress">
@@ -2534,12 +2515,12 @@ class Dashboard {
 
         body.innerHTML = resultsHTML;
 
-        // Process LaTeX in all the feedback content
         if (this.processLatexInElement) {
             this.processLatexInElement(body);
         }
     }
 
+    // revalidate quiz
     async revalidateQuiz(attemptId) {
         if (!attemptId) {
             this.showNotification('Cannot re-validate: attempt ID not found', 'warning');
@@ -2555,7 +2536,6 @@ class Dashboard {
 
             this.hideLoading();
 
-            // Show revalidation results
             this.showRevalidationResults(result);
 
         } catch (error) {
@@ -2564,6 +2544,7 @@ class Dashboard {
         }
     }
 
+    // revalidation results
     showRevalidationResults(result) {
         const modal = document.getElementById('quizTakingModal');
         const body = modal.querySelector('.modal-body');
@@ -2626,6 +2607,7 @@ class Dashboard {
         `;
     }
 
+    // download results
     async downloadDetailedResults(attemptId) {
         if (!attemptId) {
             this.showNotification('Cannot download: attempt ID not found', 'warning');
@@ -2635,7 +2617,6 @@ class Dashboard {
         try {
             this.showLoading('Generating detailed results...');
 
-            // Get the attempt details
             const attempt = await this.apiCall(`/quiz-attempts/${attemptId}`);
 
             if (!attempt.validation_results) {
@@ -2644,7 +2625,6 @@ class Dashboard {
                 return;
             }
 
-            // Create downloadable content
             let content = `QUIZ RESULTS - DETAILED FEEDBACK\n`;
             content += `=====================================\n\n`;
             content += `Quiz: ${this.currentQuiz.title}\n`;
@@ -2676,7 +2656,6 @@ class Dashboard {
                 });
             }
 
-            // Download the file
             const blob = new Blob([content], { type: 'text/plain' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -2696,27 +2675,14 @@ class Dashboard {
         }
     }
 
-    // Add a new endpoint to get quiz attempt details
-    async getQuizAttempt(attemptId) {
-        try {
-            const attempt = await this.apiCall(`/quiz-attempts/${attemptId}`);
-            return attempt;
-        } catch (error) {
-            this.showNotification('Failed to get quiz attempt details', 'error');
-            return null;
-        }
-    }
-
-    // Render selected files (file upload preview)
+    // render selected files (file upload preview)
     renderSelectedFiles() {
         const fileList = document.getElementById('modalFileList');
         if (!fileList) return;
 
-        // Clear existing selected files
         const existingSelectedFiles = fileList.querySelectorAll('[data-selected="true"]');
         existingSelectedFiles.forEach(item => item.remove());
 
-        // Add selected files preview
         this.selectedFiles.forEach((file, index) => {
             const fileItem = this.createFileItem(file, index, true);
             fileItem.setAttribute('data-selected', 'true');
@@ -2724,6 +2690,7 @@ class Dashboard {
         });
     }
 
+    // just for debugging
     diagnoseQuizIssue() {
         console.log('=== QUIZ DIAGNOSTIC ===');
         console.log('Current Quiz:', this.currentQuiz);
@@ -2747,15 +2714,14 @@ class Dashboard {
     }
 }
 
-// Initialize dashboard when DOM is loaded
+// init dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.dashboard = new Dashboard();
 });
 
-// Global utility functions and event listeners
+// global utility functions and event listeners
 window.addEventListener('beforeunload', (e) => {
-    // In a real app, you might want to save unsaved changes
-    const hasUnsavedChanges = false; // This would be determined by your app state
+    const hasUnsavedChanges = false;
 
     if (hasUnsavedChanges) {
         e.preventDefault();
@@ -2763,9 +2729,9 @@ window.addEventListener('beforeunload', (e) => {
     }
 });
 
-// Handle keyboard shortcuts
+// handle keyboard shortcuts
 document.addEventListener('keydown', (e) => {
-    // Ctrl/Cmd + N for new project
+    // cmd+n or ctrl+n for new project
     if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
         const newProjectBtn = document.getElementById('newProjectBtn');
@@ -2774,7 +2740,7 @@ document.addEventListener('keydown', (e) => {
         }
     }
 
-    // Escape to close modals
+    // esc to close modals
     if (e.key === 'Escape') {
         document.querySelectorAll('.modal-overlay.active').forEach(modal => {
             modal.classList.remove('active');
@@ -2782,7 +2748,7 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Add search functionality to projects
+// search functionality to projects
 function addSearchFunctionality() {
     const searchInput = document.createElement('input');
     searchInput.type = 'text';
