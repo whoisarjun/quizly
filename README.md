@@ -4,7 +4,7 @@ An intelligent learning platform that transforms your study materials into inter
 
 ## Features
 
-- 📚 **Document Processing**: Upload PDFs, Word docs, and text files
+- 📚 **Document Processing**: Upload PDFs
 - 🤖 **AI Quiz Generation**: Automatically create quizzes from your study materials using OpenAI
 - 🎯 **Multiple Question Types**: Multiple choice, true/false, short answer, and fill-in-the-blank
 - 📊 **Smart Analytics**: Track performance, improvement trends, and learning consistency
@@ -185,15 +185,6 @@ If you encounter issues:
 1. Check the console logs for error messages
 2. Verify your `.env` configuration
 3. Ensure all dependencies are installed
-4. Open an issue on GitHub with details
-
-## Roadmap
-
-- [ ] Support for more file formats
-- [ ] Collaborative quiz sharing
-- [ ] Advanced analytics dashboard
-- [ ] Mobile app
-- [ ] Integration with learning management systems
 
 ---
 
