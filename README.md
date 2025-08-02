@@ -39,6 +39,12 @@ pip install -r requirements.txt
 ```
 
 ### 3. Database Setup
+Install PostgreSQL from Homebrew:
+```bash
+brew install postgresql
+brew services start postgresql
+```
+
 Create a PostgreSQL database and user:
 
 ```sql
