@@ -2,8 +2,6 @@
 
 An intelligent learning platform that transforms your study materials into interactive quizzes using AI. Upload documents, generate personalized quizzes, and track your learning progress with detailed analytics.
 
-> **Personal Note**: I built this app to help me study for my A-levels - and it actually worked! Now I'm sharing it with the world so other students can benefit from AI-powered learning too. 🎓
-
 ## Features
 
 - 📚 **Document Processing**: Upload PDFs, Word docs, and text files
